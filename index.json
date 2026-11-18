@@ -1,0 +1,74 @@
+[
+ {
+  "name": "wx-points",
+  "url": "https://api.weather.gov/points/40.797,-74.481",
+  "method": "GET",
+  "status": 200,
+  "type": "application/geo+json",
+  "bytes": 3916
+ },
+ {
+  "name": "wx-obs-kmmu",
+  "url": "https://api.weather.gov/stations/KMMU/observations/latest",
+  "method": "GET",
+  "status": 200,
+  "type": "application/geo+json",
+  "bytes": 4625
+ },
+ {
+  "name": "wx-usgs-day",
+  "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson",
+  "method": "GET",
+  "status": 200,
+  "type": "application/json; charset=utf-8",
+  "bytes": 33438
+ },
+ {
+  "name": "wx-whippany",
+  "url": "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=01381500&parameterCd=00065,00060&period=P2D",
+  "method": "GET",
+  "status": 200,
+  "type": "application/json",
+  "bytes": 94419
+ },
+ {
+  "name": "wx-aqi",
+  "url": "https://air-quality-api.open-meteo.com/v1/air-quality?latitude=40.797&longitude=-74.481&current=us_aqi,pm2_5&timezone=America%2FNew_York",
+  "method": "GET",
+  "status": 200,
+  "type": "application/json; charset=utf-8",
+  "bytes": 356
+ },
+ {
+  "name": "wx-points-again",
+  "url": "https://api.weather.gov/points/40.797,-74.481",
+  "method": "GET",
+  "status": 200,
+  "type": "application/geo+json",
+  "bytes": 3916
+ },
+ {
+  "name": "wx-hourly",
+  "url": "https://api.weather.gov/gridpoints/PHI/67,120/forecast/hourly",
+  "method": "GET",
+  "status": 200,
+  "type": "application/geo+json",
+  "bytes": 162300
+ },
+ {
+  "name": "wx-daily",
+  "url": "https://api.weather.gov/gridpoints/PHI/67,120/forecast",
+  "method": "GET",
+  "status": 200,
+  "type": "application/geo+json",
+  "bytes": 12922
+ },
+ {
+  "name": "wx-stations",
+  "url": "https://api.weather.gov/gridpoints/PHI/67,120/stations",
+  "method": "GET",
+  "status": 200,
+  "type": "application/geo+json",
+  "bytes": 98484
+ }
+]
