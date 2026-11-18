@@ -668,8 +668,10 @@ function renderDial(id, scope) {
   box.querySelector(".bname").textContent = BANDS[b];
   box.querySelector(".line").textContent = LINES[b];
   drivers.hidden = false;
-  if (r.parts.length) {
-    r.parts.slice(0, 3).forEach((p) => {
+  // Domains adding less than half a point are left off the dial's own list.
+  const drive = r.parts.filter((p) => p.pts >= 0.5);
+  if (drive.length) {
+    drive.slice(0, 3).forEach((p) => {
       const li = el("li");
       // Name the domain and the reading inside it that is doing the most.
       const lead = state.feeds.filter((f) => f.scope === scope && f.tile === p.id && live(f)).sort((x, y) => sev(y) - sev(x))[0];

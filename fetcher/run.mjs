@@ -83,7 +83,8 @@ export async function runOnce({ get = httpGet, now = Date.now(), state = {}, eve
     try {
       const result = await withTimeout(a.run(ctx), ADAPTER_TIMEOUT, a.id);
       for (const doc of Array.isArray(result) ? result : [{ id: a.id, ...result }]) {
-        state.feeds[doc.id] = { ...doc, checkedAt: iso, ok: true };
+        // Each reading carries how often its source is checked, so the page knows when it is overdue.
+        state.feeds[doc.id] = { ...doc, every: a.every, checkedAt: iso, ok: true };
       }
       state.ran[a.id] = now;
       delete state.errors[a.id];

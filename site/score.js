@@ -38,7 +38,8 @@ export function tileName(id) { const t = TILES.find((x) => x.id === id); return 
 export function age(iso, now = Date.now()) { const t = Date.parse(iso); return isNaN(t) ? null : now - t; }
 // live: still counted toward the scores. fresh: read within the last 3 hours.
 export function live(f, now = Date.now()) { const a = age(f.checkedAt, now); return f.ok !== false && a != null && a < HOLD_MS; }
-export function fresh(f, now = Date.now()) { const a = age(f.checkedAt, now); return f.ok !== false && a != null && a < FRESH_MS; }
+// Fresh for 3 hours, or for two of its own check intervals plus an hour when its source is checked less often.
+export function fresh(f, now = Date.now()) { const a = age(f.checkedAt, now), every = num(f.every) || 0; return f.ok !== false && a != null && a < Math.max(FRESH_MS, (every * 2 + 60) * 60e3); }
 
 /* ---- number formats ---- */
 export function commas(n, d) { return n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/^-/, "\u2212"); }
@@ -466,9 +467,10 @@ export function dial(feeds, scope, now = Date.now()) {
   // also withdraws the backing it lends the other domains, so the dial is worked out again without it.
   tiles.forEach((t, i) => {
     const { c, share } = all.cs[i];
-    if (c < 0.005) return;
-    const quiet = combine(tiles.map((x) => (x === t ? { ...x, tile: 0 } : x))).keep;
-    parts.push({ id: t.id, c, share, pts: 100 * (quiet - keep) });
+    if (!(t.tile > 0)) return;
+    const quiet = combine(tiles.map((x) => (x === t ? { ...x, tile: 0 } : x))).keep, pts = 100 * (quiet - keep);
+    // Listed once it is worth a twentieth of a point, the smallest figure the page prints.
+    if (pts >= 0.05) parts.push({ id: t.id, c, share, pts });
   });
   parts.sort((a, b) => b.pts - a.pts);
   return {
