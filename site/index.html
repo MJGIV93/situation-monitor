@@ -46,6 +46,7 @@ try { if (localStorage.getItem("sm-theme") === "light") document.documentElement
   --stale: #5f6b78;
   --mid: #aeb8c2;
   --zone: #414e5c;
+  --rain: #3987e5;
   --f-display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
   --f-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
@@ -53,7 +54,7 @@ try { if (localStorage.getItem("sm-theme") === "light") document.documentElement
 :root[data-theme="light"] {
   color-scheme: light;
   --bg: #eceff2; --surface: #f9fafb; --sunk: #eef1f4; --line: #d2d8de; --fg: #12171c; --dim: #5a6570;
-  --b0: #1c8a5e; --b1: #8f7c00; --b2: #c4610c; --b3: #c9302c; --b4: #8e1140; --stale: #8d97a1; --mid: #36414c; --zone: #aab4be;
+  --b0: #1c8a5e; --b1: #8f7c00; --b2: #c4610c; --b3: #c9302c; --b4: #8e1140; --stale: #8d97a1; --mid: #36414c; --zone: #aab4be; --rain: #2a78d6;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -166,13 +167,25 @@ body.wall .tail, body.wall .how { display: none; }
 .wxrange { display: flex; gap: 12px; justify-content: flex-end; color: var(--fg); font-weight: 500; }
 .wxrange i { font-style: normal; font-weight: 400; font-size: 11.5px; color: var(--dim); }
 .wxwind { margin-top: 3px; }
-.wxhours { display: flex; gap: 3px; margin-top: 14px; }
-.wxh { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; }
-.wxbar { width: 100%; height: 30px; display: flex; align-items: flex-end; border-bottom: 1px solid var(--line); }
-.wxbar i { width: 100%; min-height: 0; border-radius: 1px 1px 0 0; background: var(--stale); }
-.wxbar i.wet { background: var(--mid); }
-.wxt, .wxl { height: 13px; font-size: 11px; line-height: 13px; color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.wxt { color: var(--mid); }
+.wxkey { display: flex; align-items: center; gap: 12px; margin-top: 14px; font-size: 11.5px; color: var(--dim); }
+.wxkey b { margin-right: auto; white-space: nowrap; font-weight: 600; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+.wxkey span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.wxkey .kl { width: 14px; height: 2px; border-radius: 1px; background: var(--mid); }
+.wxkey .kb { width: 8px; height: 8px; border-radius: 2px 2px 0 0; background: var(--rain); }
+.wxchart { position: relative; margin-top: 4px; }
+.wxline { position: absolute; left: 0; top: 0; width: 100%; height: 74px; overflow: visible; pointer-events: none; }
+.wxline polyline { fill: none; stroke: var(--mid); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.wxhours { position: relative; display: flex; }
+.wxh { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.wxh:hover { background: var(--sunk); border-radius: 3px; }
+.wxplot { position: relative; width: 100%; height: 74px; }
+.wxdot { position: absolute; left: 50%; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%; background: var(--fg); box-shadow: 0 0 0 2px var(--surface); }
+.wxt { position: absolute; left: 0; right: 0; text-align: center; font-size: 11.5px; line-height: 13px; font-weight: 500; color: var(--fg); white-space: nowrap; font-variant-numeric: tabular-nums; text-shadow: 0 0 3px var(--surface), 0 0 3px var(--surface); }
+.wxbar { width: 100%; height: 30px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; border-bottom: 1px solid var(--line); }
+.wxbar i { width: calc(100% - 4px); max-width: 24px; border-radius: 3px 3px 0 0; background: var(--rain); }
+.wxhours.dry .wxbar { height: 6px; }
+.wxp { font-size: 10px; line-height: 12px; color: var(--mid); font-variant-numeric: tabular-nums; }
+.wxl { margin-top: 3px; height: 13px; font-size: 11px; line-height: 13px; color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .wxrain { margin: 6px 0 4px; font-size: 13px; color: var(--mid); }
 .news { padding-bottom: 8px; }
 .news .domhead { justify-content: space-between; align-items: baseline; }
@@ -1157,26 +1170,55 @@ function weatherCard() {
     side.appendChild(el("div", "wxwind", wind ? "Wind " + String(w.now.dir || "") + " " + wind + " mph" + (num(w.now.gust) && w.now.gust > wind + 4 ? ", gusts " + w.now.gust : "") : "Calm"));
     top.appendChild(side);
     card.appendChild(top);
-    // The next 12 hours: each hour's temperature, a bar for its chance of rain, and the hour in short form (11a, 2p).
+    // The next 12 hours on one set of columns: a temperature line with each hour's reading on it,
+    // and under it a bar for each hour's chance of rain. Two bands, so neither scale is read off the other.
     // Hours that have ended since the last check are dropped.
     const hours = arr(w.hours).filter((h) => !(Date.parse(h.t) + 3600e3 <= Date.now())).slice(0, 12);
-    if (hours.length) {
-      const strip = el("div", "wxhours");
+    const temps = hours.map((h) => num(h.temp)).filter((t) => t != null);
+    if (hours.length && temps.length) {
+      const key = el("div", "wxkey"), kt = el("span"), kr = el("span");
+      key.appendChild(el("b", null, "Next " + hours.length + " hours"));
+      kt.appendChild(el("i", "kl")); kt.appendChild(document.createTextNode("Temp"));
+      kr.appendChild(el("i", "kb")); kr.appendChild(document.createTextNode("Rain chance"));
+      key.appendChild(kt); key.appendChild(kr);
+      card.appendChild(key);
+      // A flat day still gets a readable line: the scale never spans less than 6 degrees.
+      const H = 74, TOP = 21, BOT = 7, lo = Math.min(...temps), hi = Math.max(...temps), span = Math.max(hi - lo, 6), base = (hi + lo) / 2 - span / 2;
+      const y = (t) => TOP + (1 - (t - base) / span) * (H - TOP - BOT);
+      const chart = el("div", "wxchart"), strip = el("div", "wxhours"), NS = "http://www.w3.org/2000/svg";
+      const svg = document.createElementNS(NS, "svg"), line = document.createElementNS(NS, "polyline");
+      svg.setAttribute("class", "wxline");
+      svg.setAttribute("viewBox", "0 0 " + hours.length + " " + H);
+      svg.setAttribute("preserveAspectRatio", "none");
+      svg.setAttribute("aria-hidden", "true");
+      line.setAttribute("points", hours.map((h, i) => (num(h.temp) == null ? null : (i + 0.5) + "," + y(num(h.temp)).toFixed(1))).filter(Boolean).join(" "));
+      svg.appendChild(line);
+      chart.appendChild(svg);
+      // With no rain anywhere in the 12 hours, the rain band closes up to its baseline.
+      if (!hours.some((h) => num(h.pop) > 0)) strip.className += " dry";
       strip.setAttribute("role", "img");
-      strip.setAttribute("aria-label", String(w.rain || "Next 12 hours"));
-      hours.forEach((h, i) => {
-        const col = el("div", "wxh"), bar = el("i"), pop = clamp(num(h.pop) || 0, 0, 100);
-        col.appendChild(el("span", "wxt", num(h.temp) != null ? Math.round(num(h.temp)) + "\u00b0" : ""));
-        const track = el("div", "wxbar");
-        bar.style.height = Math.max(pop, 0) + "%";
-        if (pop >= 30) bar.className = "wet";
+      strip.setAttribute("aria-label", "Temperature from " + Math.round(temps[0]) + " to " + Math.round(temps[temps.length - 1]) + " degrees, low " + Math.round(lo) + ", high " + Math.round(hi) + ". " + String(w.rain || ""));
+      hours.forEach((h) => {
+        const col = el("div", "wxh"), plot = el("div", "wxplot"), t = num(h.temp), pop = clamp(num(h.pop) || 0, 0, 100);
+        if (t != null) {
+          const lab = el("span", "wxt", Math.round(t) + "\u00b0"), dot = el("i", "wxdot");
+          lab.style.top = (y(t) - 19).toFixed(1) + "px";
+          dot.style.top = y(t).toFixed(1) + "px";
+          plot.appendChild(lab); plot.appendChild(dot);
+        }
+        col.appendChild(plot);
+        const track = el("div", "wxbar"), bar = el("i");
+        // The percentage is printed over hours wet enough to plan around.
+        if (pop >= 30) track.appendChild(el("span", "wxp", pop + "%"));
+        bar.style.height = (pop ? Math.max(2, Math.round(pop * 0.16)) : 0) + "px";
         track.appendChild(bar);
         col.appendChild(track);
         col.appendChild(el("span", "wxl", String(h.h || "").replace(/\s*AM$/i, "a").replace(/\s*PM$/i, "p")));
-        col.title = String(h.h || "") + ": " + Math.round(num(h.temp)) + "\u00b0, " + pop + "% chance of rain";
+        col.title = String(h.h || "") + ": " + (t != null ? Math.round(t) + "\u00b0, " : "") + pop + "% chance of rain";
         strip.appendChild(col);
       });
-      card.appendChild(strip);
+      chart.appendChild(strip);
+      card.appendChild(chart);
       card.appendChild(el("div", "wxrain", String(w.rain || "")));
     }
   }
