@@ -171,7 +171,7 @@ body.wall .tail, body.wall .how { display: none; }
 .wxbar { width: 100%; height: 30px; display: flex; align-items: flex-end; border-bottom: 1px solid var(--line); }
 .wxbar i { width: 100%; min-height: 0; border-radius: 1px 1px 0 0; background: var(--stale); }
 .wxbar i.wet { background: var(--mid); }
-.wxt, .wxl { height: 13px; font-size: 11px; line-height: 13px; color: var(--dim); white-space: nowrap; }
+.wxt, .wxl { height: 13px; font-size: 11px; line-height: 13px; color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .wxt { color: var(--mid); }
 .wxrain { margin: 6px 0 4px; font-size: 13px; color: var(--mid); }
 .news { padding-bottom: 8px; }
@@ -1157,21 +1157,22 @@ function weatherCard() {
     side.appendChild(el("div", "wxwind", wind ? "Wind " + String(w.now.dir || "") + " " + wind + " mph" + (num(w.now.gust) && w.now.gust > wind + 4 ? ", gusts " + w.now.gust : "") : "Calm"));
     top.appendChild(side);
     card.appendChild(top);
-    // The next 12 hours: a bar for each hour's chance of rain, with the temperature every third hour.
-    const hours = arr(w.hours).slice(0, 12);
+    // The next 12 hours: each hour's temperature, a bar for its chance of rain, and the hour in short form (11a, 2p).
+    // Hours that have ended since the last check are dropped.
+    const hours = arr(w.hours).filter((h) => !(Date.parse(h.t) + 3600e3 <= Date.now())).slice(0, 12);
     if (hours.length) {
       const strip = el("div", "wxhours");
       strip.setAttribute("role", "img");
       strip.setAttribute("aria-label", String(w.rain || "Next 12 hours"));
       hours.forEach((h, i) => {
         const col = el("div", "wxh"), bar = el("i"), pop = clamp(num(h.pop) || 0, 0, 100);
-        col.appendChild(el("span", "wxt", i % 3 === 0 ? Math.round(num(h.temp)) + "\u00b0" : ""));
+        col.appendChild(el("span", "wxt", num(h.temp) != null ? Math.round(num(h.temp)) + "\u00b0" : ""));
         const track = el("div", "wxbar");
         bar.style.height = Math.max(pop, 0) + "%";
         if (pop >= 30) bar.className = "wet";
         track.appendChild(bar);
         col.appendChild(track);
-        col.appendChild(el("span", "wxl", i % 3 === 0 ? String(h.h || "") : ""));
+        col.appendChild(el("span", "wxl", String(h.h || "").replace(/\s*AM$/i, "a").replace(/\s*PM$/i, "p")));
         col.title = String(h.h || "") + ": " + Math.round(num(h.temp)) + "\u00b0, " + pop + "% chance of rain";
         strip.appendChild(col);
       });

@@ -51,7 +51,8 @@ export default [
         need(Array.isArray(list) && list.length >= 2, "short daily forecast");
         return list.slice(0, 4).map((p) => ({ end: p.endTime, day: p.isDaytime, temp: p.temperature }));
       });
-      const ahead = hourly.filter((h) => Date.parse(h.end) > ctx.now).slice(0, 12);
+      // Two hours more than the page shows, so it can drop hours that pass between checks and still fill 12.
+      const ahead = hourly.filter((h) => Date.parse(h.end) > ctx.now).slice(0, 14);
       need(ahead.length >= 6, "hourly forecast is out of date");
       const hours = ahead.map((h) => ({ t: h.t, h: hourLabel(h.t), temp: h.temp, pop: h.pop, sky: sky(h.text, h.day) }));
 
@@ -77,7 +78,7 @@ export default [
         hi: future.find((p) => p.day)?.temp ?? null, lo: future.find((p) => !p.day)?.temp ?? null,
         // Whether the next figure is today's high or tonight's low comes first depends on the hour.
         nightFirst: future[0] ? !future[0].day : false,
-        hours, rain: rainText(hours),
+        hours, rain: rainText(hours.slice(0, 12)),
         source: "https://forecast.weather.gov/MapClick.php?lat=40.797&lon=-74.481",
       };
     },
