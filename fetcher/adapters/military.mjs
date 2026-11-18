@@ -117,7 +117,7 @@ export default [
         {
           id: "tfr-home", name: "VIP flight restrictions over New York and New Jersey", label: "VIP visits", tile: "gov", scope: "home", kind: "events", rule: "vip",
           events: local.filter((t) => isFinite(when(t))).map((t) => ({ event: `VIP movement: ${place(t)}`, at: new Date(when(t)).toISOString(), text: etDay(when(t)) })),
-          short: local.length ? "airspace restricted" : "none scheduled",
+          short: local.length ? "restricted" : "none scheduled",
           note: "A presidential or vice presidential visit closes airspace and usually snarls Midtown traffic and Penn Station access. It scores a little on the day and the day before, as a heads-up.",
           source,
         },
@@ -191,7 +191,7 @@ export default [
         steps: ["Quiet", "Above usual", "Busy", "Spiking", "All spiking"], sevs: [0, 5, 10, 15, 20],
         ladder: ["DOUGHCON 5", "DOUGHCON 4", "DOUGHCON 3", "DOUGHCON 2", "DOUGHCON 1"],
         step: 5 - level,
-        short: `DOUGHCON ${level}` + (open.length ? "" : ", closed"),
+        short: `DOUGHCON ${level}`,
         detail: open.length ? "" : "None of the tracked shops is reporting live busyness right now, which is normal when they're closed.",
         items: open.map((p) => `${p.name}: ${p.percentage_of_usual != null ? Math.round(p.percentage_of_usual) + "% of usual" : "busyness " + p.current_popularity}${p.is_spike ? ", spiking" : ""}`),
         note: "How busy the pizza shops nearest the Pentagon are compared with their usual, as tracked by the hobby site PizzINT from Google's live busyness figures. The idea is that late-night orders rise when staff are kept in. It's a fun signal, so it can add at most 20 to this domain.",

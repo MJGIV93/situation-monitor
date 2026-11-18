@@ -1,4 +1,4 @@
-import { json, need, fetchOk, strip, clip, commas, short, pct, etDay } from "../lib/util.mjs";
+import { json, need, fetchOk, strip, clip, commas, short, pct, etDay, etWeekdayClock } from "../lib/util.mjs";
 
 const SHARE_STEPS = ["Normal", "Scattered", "Elevated", "Major", "Severe"];
 const SHARE_LADDER = ["under 0.1% out", "0.1% to 0.5%", "0.5% to 2%", "2% to 10%", "over 10%"];
@@ -37,6 +37,49 @@ function kubra({ id, name, label, note, stormcenter, view, customers, source, w,
         detail: `${commas(out)} of ${commas(served)} customers without power, or ${pct(share)}, across ${commas(best.t.total_outages ?? 0)} outages.`,
         dataAt: best.at,
         track: { out, served, outages: best.t.total_outages ?? 0 },
+      };
+    },
+  };
+}
+
+// The same map publishes a report with a row for every municipality.
+const TOWN_STEPS = ["Normal", "Scattered", "Neighborhood", "Widespread", "Town-wide"];
+const TOWN_LADDER = ["under 0.1% out", "0.1% to 1%", "1% to 5%", "5% to 25%", "over 25%"];
+function kubraTowns({ id, name, label, note, stormcenter, view, county, towns, source }) {
+  const api = `https://kubra.io/stormcenter/api/v1/stormcenters/${stormcenter}/views/${view}`;
+  return {
+    id,
+    every: 10,
+    async run(ctx) {
+      const state = json(await fetchOk(ctx, `${api}/currentState?preview=false`));
+      const path = state?.data?.interval_generation_data;
+      need(path, "no data path");
+      // The report's file name is in the map's configuration, which rarely changes.
+      const file = await ctx.memo("report-" + state.stormcenterDeploymentId, 1440, async () => {
+        const config = json(await fetchOk(ctx, `${api}/configuration/${state.stormcenterDeploymentId}?preview=false`));
+        const found = config?.config?.reports?.data?.interval_generation_data?.[0]?.source;
+        need(found, "no report in the map configuration");
+        return found;
+      });
+      const report = json(await fetchOk(ctx, `https://kubra.io/${path}/${file}`));
+      const rows = [];
+      const walk = (a) => { if (a?.key === "Township" && a.county === county && towns[a.name]) rows.push(a); (a?.areas ?? []).forEach(walk); };
+      (report?.file_data?.areas ?? []).forEach(walk);
+      need(rows.length === Object.keys(towns).length, "town rows not found in the outage report");
+      rows.sort((a, b) => Object.keys(towns).indexOf(a.name) - Object.keys(towns).indexOf(b.name));
+      // Counts under a threshold are masked: val 19 with mask 20 means fewer than 20.
+      const masked = rows.some((r) => r.cust_a?.mask && r.cust_a.val > 0);
+      const out = rows.reduce((a, r) => a + (r.cust_a?.val ?? 0), 0), served = rows.reduce((a, r) => a + (r.cust_s ?? 0), 0);
+      const outages = rows.reduce((a, r) => a + (r.n_out ?? 0), 0), share = (out / served) * 100;
+      const etr = rows.map((r) => Date.parse(r.etr)).filter((t) => t > ctx.now).sort((a, b) => b - a)[0];
+      const say = (r) => `${towns[r.name]}: ${r.cust_a?.mask && r.cust_a.val > 0 ? "fewer than " + r.cust_a.mask : commas(r.cust_a?.val ?? 0)} of ${commas(r.cust_s)} out`;
+      return {
+        name, label, tile: "power", scope: "home", kind: "level", note, source,
+        steps: TOWN_STEPS, ladder: TOWN_LADDER, sevs: [0, 5, 20, 45, 75],
+        step: share >= 25 ? 4 : share >= 5 ? 3 : share >= 1 ? 2 : share >= 0.1 ? 1 : 0,
+        short: out ? `${masked && out < 40 ? "under " + (Math.ceil((out + 1) / 20) * 20) : commas(out)} out` : "none out",
+        detail: rows.map(say).join(". ") + "." + (etr ? ` JCP&L estimates power back by ${etWeekdayClock(etr)}.` : ""),
+        track: { out, served, outages },
       };
     },
   };
@@ -88,6 +131,13 @@ export default [
   kubra({
     id: "jcpl", name: "JCP&L outages", label: "JCP&L", note: "All of JCP&L's New Jersey territory, from its own outage map.",
     stormcenter: "6c715f0e-bbec-465f-98cc-0b81623744be", view: "fcd7c23d-de37-4471-8ca3-37c3260f94fa", customers: 1161627,
+    source: "https://outages-nj.firstenergycorp.com/",
+  }),
+  kubraTowns({
+    id: "jcpl-town", name: "JCP&L outages, Morristown and Morris Township", label: "JCP&L in town",
+    note: "Customers without power in Morristown and Morris Township together, from the town rows of JCP&L's outage map. JCP&L hides exact counts under 20.",
+    stormcenter: "6c715f0e-bbec-465f-98cc-0b81623744be", view: "fcd7c23d-de37-4471-8ca3-37c3260f94fa",
+    county: "MORRIS", towns: { "MORRISTOWN TOWN": "Morristown", "MORRIS TOWNSHIP": "Morris Township" },
     source: "https://outages-nj.firstenergycorp.com/",
   }),
   kubra({
@@ -162,6 +212,14 @@ export default [
         const text = strip(res.text);
         n.status = /boil[- ]water advisory/i.test(text) && !/no boil[- ]water advisory/i.test(text) ? "boil" : /in progress/i.test(text) ? "active" : /complete|restored/i.test(text) ? "done" : "posted";
         n.where = clip(text.match(/at or near ([^.]{3,90})\./i)?.[1] ?? "", 80);
+        // The notice's address is public. Its coordinates let each viewer's browser judge how close the work is.
+        if (n.where && !n.pt && (n.tries ?? 0) < 3 && (n.status === "active" || n.status === "boil")) {
+          n.tries = (n.tries ?? 0) + 1;
+          const geo = await ctx.get("https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?benchmark=Public_AR_Current&format=json&address=" + encodeURIComponent(n.where.replace(/\s+in\s+/i, ", ") + ", NJ"));
+          let at = null;
+          try { at = geo.ok ? json(geo.text).result?.addressMatches?.[0]?.coordinates : null; } catch { at = null; }
+          if (at && Math.abs(at.y - 40.8) < 0.5 && Math.abs(at.x + 74.5) < 0.5) n.pt = [Math.round(at.y * 1e4) / 1e4, Math.round(at.x * 1e4) / 1e4];
+        }
       }
       const local = (n) => /Morristown|Morris Township|Morris Twp/i.test(`${n.title} ${n.where ?? ""}`);
       const open = recent.map(([, n]) => n).filter((n) => n.status === "active" || n.status === "boil");
@@ -169,11 +227,14 @@ export default [
       const say = (n) => `${n.status === "boil" ? "Boil water" : n.status === "active" ? "In progress" : n.status === "done" ? "Completed" : "Posted"}: ${n.where || n.title.replace(/^Water Repairs in /i, "")} (${etDay(n.at)})`;
       return {
         name: "SMCMUA water notices", label: "SMCMUA water", tile: "power", scope: "home", kind: "level",
-        steps: ["No notice", "Nearby", "In town", "Boil water"], sevs: [0, 5, 25, 80],
-        ladder: ["nothing under way", "work in a neighboring town", "work in Morristown or Morris Township", "boil-water advisory"],
-        step: boil ? 3 : nearMe.length ? 2 : open.length ? 1 : 0,
-        short: open.length ? `${open.length} repair${open.length > 1 ? "s" : ""} under way` : "none active",
-        detail: nearMe.length ? "A repair in town usually affects a few streets for a few hours. Check the notice for yours." : "",
+        // "Across town" and "Near you" are only ever set in the browser, from a location saved on that device.
+        steps: ["No notice", "Other towns", "Across town", "In town", "Near you", "Boil water"], sevs: [0, 5, 10, 25, 40, 80],
+        ladder: ["nothing under way", "work in a neighboring town", "work in town, over 2 miles from you", "work in Morristown or Morris Township", "work within three-quarters of a mile of you", "boil-water advisory"],
+        step: boil ? 5 : nearMe.length ? 3 : open.length ? 1 : 0,
+        places: open.map((n) => ({ name: n.where || n.title.replace(/^Water Repairs in /i, ""), lat: n.pt?.[0], lon: n.pt?.[1], local: local(n) })),
+        byDistance: { near: 0.75, far: 2, nearStep: 4, farStep: 2, townStep: 3, elseStep: 1, top: 5 },
+        short: open.length ? `${open.length} under way` : "none active",
+        detail: nearMe.length ? "A repair in town usually affects the streets around it for a few hours. Save your location at the bottom of the page and this is judged by distance instead of by town." : "",
         items: recent.map(([, n]) => say(n)).slice(0, 6),
         note: "From the utility's alerts page and each notice it links to. Checked every 10 minutes.",
         source: "https://www.smcmua.org/alerts.htm",

@@ -1,19 +1,26 @@
-import { json, need, fetchOk, clip, km, etWeekdayClock } from "../lib/util.mjs";
+import { json, need, fetchOk, clip, km, etWeekdayClock, touchesBox } from "../lib/util.mjs";
 
 const HOME = { lat: 40.797, lon: -74.481 }; // Morristown
 const US_PLACE = /(Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New Hampshire|New Jersey|New Mexico|New York|North Carolina|North Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode Island|South Carolina|South Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West Virginia|Wisconsin|Wyoming|Puerto Rico|, [A-Z]{2})$/;
 const USGS = "https://earthquake.usgs.gov";
 const since = (ctx, days) => new Date(ctx.now - days * 86400e3).toISOString().slice(0, 19);
 
-function nws({ id, zone, name, label }) {
+// Morristown and Morris Township together, as [west, south, east, north].
+const TOWN_BOX = [-74.5423, 40.7644, -74.4342, 40.8332];
+
+// Long-running alerts like winter storms are issued for the forecast zone. Short-fuse
+// warnings (tornado, severe thunderstorm, flash flood) are issued for the county and drawn
+// as a shape, so both codes are asked for. A shape that misses the box is marked as away.
+function nws({ id, zones, box, name, label, note }) {
   return {
     id,
     every: 10,
     async run(ctx) {
-      const j = json(await fetchOk(ctx, `https://api.weather.gov/alerts/active?zone=${zone}`, { accept: "application/geo+json" }));
+      const j = json(await fetchOk(ctx, `https://api.weather.gov/alerts/active?zone=${zones}`, { accept: "application/geo+json" }));
       need(Array.isArray(j.features), "no alert list");
-      const events = j.features.map((f) => f.properties).filter((p) => p && p.status === "Actual" && p.messageType !== "Cancel").map((p) => {
-        const ends = p.ends ?? p.expires;
+      const seen = new Set();
+      const events = j.features.filter((f) => f?.properties && f.properties.status === "Actual" && f.properties.messageType !== "Cancel" && !seen.has(f.properties.id) && seen.add(f.properties.id)).map((f) => {
+        const p = f.properties, ends = p.ends ?? p.expires;
         return {
           event: p.event,
           onset: p.onset ?? p.effective,
@@ -21,22 +28,27 @@ function nws({ id, zone, name, label }) {
           text: ends ? "until " + etWeekdayClock(Date.parse(ends)) : "",
           emergency: /Tornado|Flash Flood/.test(p.event ?? "") && /EMERGENCY/.test(`${p.headline ?? ""} ${p.description ?? ""}`) ? true : undefined,
           more: clip(p.headline ?? "", 180),
+          away: box && f.geometry && !touchesBox(f.geometry, box) ? true : undefined,
         };
       });
+      const here = events.filter((e) => !e.away);
       return {
         name, label, tile: "hazard", scope: "home", kind: "events", rule: "weather",
         events,
-        short: events.length ? clip(events[0].event, 26) : "none active",
-        note: `National Weather Service alerts for zone ${zone}.`,
-        source: `https://alerts.weather.gov/search?zone=${zone}`,
+        short: here.length ? clip(here[0].event, 26) : events.length ? "elsewhere in county" : "none active",
+        note,
+        source: `https://alerts.weather.gov/search?zone=${zones}`,
       };
     },
   };
 }
 
 export default [
-  nws({ id: "nws-morris", zone: "NJZ008", name: "NWS alerts, Morris County", label: "Morris weather" }),
-  nws({ id: "nws-manhattan", zone: "NYZ072", name: "NWS alerts, Manhattan", label: "NYC weather" }),
+  nws({
+    id: "nws-morris", zones: "NJZ008,NJC027", box: TOWN_BOX, name: "NWS alerts, Morristown and Morris Township", label: "Local weather",
+    note: "National Weather Service alerts for Morris County. A warning drawn as a shape, like a tornado or flash flood warning, counts in full only when the shape reaches Morristown or Morris Township.",
+  }),
+  nws({ id: "nws-manhattan", zones: "NYZ072,NYC061", name: "NWS alerts, Manhattan", label: "NYC weather", note: "National Weather Service alerts for Manhattan, both area-wide alerts and short-fuse warnings." }),
   {
     id: "swpc-scales",
     every: 30,

@@ -74,6 +74,29 @@ export function km(lat1, lon1, lat2, lon2) {
   return 12742 * Math.asin(Math.sqrt(a));
 }
 
+// Whether a GeoJSON polygon or multipolygon touches a box given as [west, south, east, north].
+export function touchesBox(geometry, [w, s, e, n]) {
+  const rings = geometry?.type === "Polygon" ? [geometry.coordinates?.[0]] : geometry?.type === "MultiPolygon" ? (geometry.coordinates ?? []).map((p) => p?.[0]) : [];
+  const corners = [[w, s], [e, s], [e, n], [w, n]];
+  const inRing = (ring, [x, y]) => {
+    let hit = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, yi] = ring[i], [xj, yj] = ring[j];
+      if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit;
+    }
+    return hit;
+  };
+  const turn = (a, b, c) => Math.sign((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]));
+  const cross = (a, b, c, d) => turn(a, b, c) !== turn(a, b, d) && turn(c, d, a) !== turn(c, d, b);
+  for (const ring of rings) {
+    if (!Array.isArray(ring) || ring.length < 3) continue;
+    if (ring.some(([x, y]) => x >= w && x <= e && y >= s && y <= n)) return true;
+    if (corners.some((c) => inRing(ring, c))) return true;
+    for (let i = 1; i < ring.length; i++) for (let k = 0; k < 4; k++) if (cross(ring[i - 1], ring[i], corners[k], corners[(k + 1) % 4])) return true;
+  }
+  return false;
+}
+
 /* ---- price readings ---- */
 // hist: values oldest to newest, the last one being the current value.
 // perWeek: points per week (5 trading days, 7 calendar days, or 1 for weekly data).

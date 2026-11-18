@@ -277,6 +277,11 @@ body.wall .tail, body.wall .how { display: none; }
 .foot a { color: inherit; }
 .how summary { cursor: pointer; font-size: 13px; color: var(--dim); }
 .how p { margin-top: 8px; max-width: 70ch; }
+.meform { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.meform input { flex: 1 1 220px; min-width: 0; min-height: 34px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--sunk); color: var(--fg); font: inherit; font-size: 13px; }
+.btn { appearance: none; -webkit-appearance: none; min-height: 34px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 4px; background: none; color: var(--fg); font: inherit; font-size: 13px; cursor: pointer; }
+.btn:hover { border-color: var(--dim); }
+.meform input:focus-visible, .btn:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .gauge .needle { transition: none; } }
 
 @media (min-width: 720px) {
@@ -359,6 +364,17 @@ body.wall .tail, body.wall .how { display: none; }
       <p class="small">Readings refresh every 10 minutes, and slower sources hourly. If a source stops answering, its last reading stays up. It is dimmed after 3 hours and stops counting after 24.</p>
     </details>
     <div class="foot">
+      <details class="how me">
+        <summary>Your location</summary>
+        <p class="small">Save where you are and local notices are judged by distance from you, not just by town. A water repair within three-quarters of a mile reads as near you, and one across town reads lower. The location stays in this browser. It is never sent to the monitor or published, and the recorded history keeps the town-wide reading. Looking up an address sends it once to the US Census Bureau's address service.</p>
+        <form class="meform" id="meForm">
+          <input type="text" id="meAddr" autocomplete="street-address" placeholder="Street address" aria-label="Street address">
+          <button type="submit" class="btn">Look up</button>
+          <button type="button" class="btn" id="meHere">Use this device's location</button>
+          <button type="button" class="btn" id="meClear" hidden>Clear</button>
+        </form>
+        <p class="small" id="meText" role="status"></p>
+      </details>
       <details id="errs" hidden><summary></summary><ul id="errList"></ul></details>
       <span>Military aircraft data from <a href="https://adsb.fi/" target="_blank" rel="noopener noreferrer">adsb.fi</a>. Pizza index from <a href="https://www.pizzint.watch/" target="_blank" rel="noopener noreferrer">PizzINT</a>.</span>
       <span>Version 0.1, build __BUILD__. Built from public sources. Code and method: <a href="https://github.com/MJGIV93/situation-monitor" target="_blank" rel="noopener noreferrer">github.com/MJGIV93/situation-monitor</a></span>
@@ -378,7 +394,7 @@ body.wall .tail, body.wall .how { display: none; }
 <script type="module">
 import {
   FRESH_MS, SCOPES, BANDS, LINES, TILES, num, arr, clamp, band, tileName, age, live, fresh, commas, fmt, signed,
-  wk, windows, moveOver, moveText, calc, tileScore, dial, rowText,
+  wk, windows, moveOver, moveText, calc, tileScore, dial, rowText, localize, miles, milesText,
 } from "./score.js?v=__BUILD__";
 
 const DATA_URL = "data/latest.json";
@@ -654,7 +670,7 @@ function detail(f, c) {
     arr(f.dirs).forEach((d) => {
       tl.appendChild(el("li", "th", String((d && d.to) || "")));
       const trains = arr(d && d.trains);
-      if (!trains.length) tl.appendChild(el("li", null, "No trains listed right now."));
+      if (!trains.length) tl.appendChild(el("li", null, "None listed right now."));
       trains.forEach((t) => {
         const li = el("li");
         li.appendChild(el("b", null, String(t.t || "") + (t.n ? "  #" + t.n : "")));
@@ -832,6 +848,7 @@ function panelExtras(f, c) {
     cap.appendChild(el("span", null, span >= 1.5 ? "Past " + Math.round(span) + " hours" : "Past " + Math.round(span * 60) + " minutes"));
     cap.appendChild(el("span", null, peak > 0 ? "Peak " + peak + " at " + clockText(at) : "No signal in that time"));
     s.appendChild(cap);
+    if (f.mine) s.appendChild(el("p", "small", "This chart is the town-wide reading that gets recorded. Your saved location changes only what this device shows now."));
     out.push(s);
   }
 
@@ -990,13 +1007,69 @@ function render() {
   if (focus) { const again = document.querySelector(focus.host + ' .row[data-id="' + focus.id + '"]'); if (again) again.focus({ preventScroll: true }); }
 }
 
+// A location saved in this browser. It is never sent to the monitor.
+const ME_KEY = "sm-location", TOWN = { lat: 40.797, lon: -74.481 };
+function readMe() {
+  try { const m = JSON.parse(localStorage.getItem(ME_KEY)); return m && isFinite(m.lat) && isFinite(m.lon) ? m : null; } catch (e) { return null; }
+}
+let me = readMe();
+function applyMe() { state.feeds = arr(state.raw).map((f) => { const g = localize(f, me); return { ...g, _c: calc(g) }; }); }
+function renderMe(msg) {
+  const d = me ? miles(me.lat, me.lon, TOWN.lat, TOWN.lon) : 0;
+  $("meText").textContent = msg || (me
+    ? "Saved on this device, " + milesText(d) + " from the center of Morristown." + (d > 15 ? " That's too far for the local readings to change." : " Water notices are now judged by distance from it.")
+    : "Nothing saved. Local notices are judged by town.");
+  $("meClear").hidden = !me;
+}
+function saveMe(m, msg) {
+  me = m;
+  try { if (m) localStorage.setItem(ME_KEY, JSON.stringify(m)); else localStorage.removeItem(ME_KEY); } catch (e) { /* private window: kept for this visit only */ }
+  applyMe();
+  renderMe(msg);
+  render();
+}
+const spot = (lat, lon) => ({ lat: Math.round(lat * 1000) / 1000, lon: Math.round(lon * 1000) / 1000 });
+// The Census Bureau's address service answers by script callback, which works from any page.
+function lookup(address) {
+  return new Promise((resolve, reject) => {
+    const name = "smGeo" + Date.now(), s = document.createElement("script");
+    const done = () => { clearTimeout(timer); delete window[name]; s.remove(); };
+    const timer = setTimeout(() => { done(); reject(new Error("timeout")); }, 15000);
+    window[name] = (j) => { done(); resolve(j); };
+    s.onerror = () => { done(); reject(new Error("unreachable")); };
+    s.src = "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?benchmark=Public_AR_Current&format=jsonp&callback=" + name + "&address=" + encodeURIComponent(address);
+    document.head.appendChild(s);
+  });
+}
+$("meForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  let q = $("meAddr").value.trim();
+  if (!q) return;
+  if (!/,/.test(q)) q += ", Morristown, NJ";
+  renderMe("Looking up the address.");
+  lookup(q).then((j) => {
+    const at = j && j.result && arr(j.result.addressMatches)[0];
+    if (!at || !at.coordinates) return renderMe("No match for that address. Try it with the street number, town and state.");
+    $("meAddr").value = "";
+    saveMe(spot(at.coordinates.y, at.coordinates.x));
+  }).catch(() => renderMe("The address service didn't answer. Try again, or use this device's location."));
+});
+$("meHere").addEventListener("click", () => {
+  if (!navigator.geolocation) return renderMe("This browser can't share a location. Enter an address instead.");
+  renderMe("Asking this device for its location.");
+  navigator.geolocation.getCurrentPosition((p) => saveMe(spot(p.coords.latitude, p.coords.longitude)), () => renderMe("The location wasn't shared. Enter an address instead."), { maximumAge: 600000, timeout: 15000 });
+});
+$("meClear").addEventListener("click", () => saveMe(null));
+renderMe();
+
 async function load() {
   try {
     const res = await fetch(DATA_URL + "?t=" + Date.now(), { cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
     state.scannedAt = data.scannedAt || null;
-    state.feeds = arr(data.feeds).filter((f) => f && !f.hidden).map((f) => ({ ...f, _c: calc(f) }));
+    state.raw = arr(data.feeds).filter((f) => f && !f.hidden);
+    applyMe();
     state.history = arr(data.history).filter((p) => p && typeof p === "object");
     state.log = arr(data.log).filter((x) => x && x.text);
     state.errors = arr(data.errors);

@@ -172,7 +172,7 @@ function trainCalc(f) {
   if (lineDelay) r.lines.push("Line alert: " + Math.round(line) + ". NJ Transit is reporting delays of up to " + lineDelay + " minutes on the line.");
   if (f.suspended) r.lines.push("Service is suspended, which scores 90.");
   else r.lines.push("The signal is the higher of the board and any line-wide delay alert.");
-  r.why = f.suspended ? "Service is suspended." : late || canc ? late + " late and " + canc + " cancelled among the next trains" + (lineDelay ? ", with line-wide delays of up to " + lineDelay + " minutes." : ".") : lineDelay ? "NJ Transit reports delays of up to " + lineDelay + " minutes on the line." : "The next trains are on time and there's no line-wide alert.";
+  r.why = f.suspended ? "Service is suspended." : late || canc ? late + " late and " + canc + " cancelled among the next trains" + (lineDelay ? ", with line-wide delays of up to " + lineDelay + " minutes." : ".") : lineDelay ? "NJ Transit reports delays of up to " + lineDelay + " minutes on the line." : trainList(f).length ? "The next trains are on time and there's no line-wide alert." : "No trains are due soon and there's no line-wide alert.";
   return r;
 }
 
@@ -246,6 +246,7 @@ const EVENT_RULES = {
     if (ends < now) return { pts: 0, why: "ended" };
     const far = onset - now > 6 * HOUR;
     const commute = base >= 15 && overlapsCommute(Math.max(now, onset), ends);
+    if (e.away) return { pts: base * 0.4, why: tier + " " + base + ", at 40% because its drawn area misses town" };
     const pts = base * (far ? 0.6 : 1) + (commute ? 10 : 0);
     return { pts, why: tier + " " + base + (far ? ", at 60% until 6 hours before it starts" : "") + (commute ? ", +10 for a weekday commute" : "") };
   },
@@ -291,7 +292,7 @@ const EVENT_RULES = {
   context() { return { pts: 0, why: "context only" }; },
 };
 const EVENT_NOTES = {
-  weather: "Scored by alert type: statement 5, advisory 15, watch 30, warning 55, high-end warning 80, emergency 95. The highest active alert counts.",
+  weather: "Scored by alert type: statement 5, advisory 15, watch 30, warning 55, high-end warning 80, emergency 95. The highest active alert counts. A warning drawn as a shape that misses town counts at 40%.",
   town: "Community notices score 0, advisories 12, alerts 55, and 80 for wording like boil water, evacuate or shelter in place. A notice fades after 6 hours and drops off after 24.",
   quakeHome: "Scored by magnitude and distance from Morristown. Within 60 miles: 10 at magnitude 2.5, 30 at 3.5, 55 at 4.5, 85 at 5.5.",
   quakeUS: "Only US quakes count: 25 at magnitude 6, 60 at 7, more if USGS rates the impact orange or red.",
@@ -314,6 +315,27 @@ function eventCalc(f, now) {
   return r;
 }
 
+/* ---- a location saved in the viewer's browser ---- */
+export function miles(lat1, lon1, lat2, lon2) {
+  const r = Math.PI / 180, a = Math.sin(((lat2 - lat1) * r) / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(((lon2 - lon1) * r) / 2) ** 2;
+  return 7917.5 * Math.asin(Math.sqrt(a));
+}
+export function milesText(d) { return d < 0.15 ? "about a tenth of a mile" : d < 10 ? d.toFixed(1) + " miles" : Math.round(d) + " miles"; }
+// A reading that lists places can be judged by distance from that location. The published
+// reading only knows the town, so this runs in the page and never reaches the recorded history.
+export function localize(f, me) {
+  const rule = f && f.byDistance, places = arr(f && f.places);
+  if (!me || num(me.lat) == null || num(me.lon) == null || !rule || !places.length || num(f.step) >= rule.top) return f;
+  let step = 0, nearest = null;
+  places.forEach((p) => {
+    const d = num(p.lat) != null && num(p.lon) != null ? miles(me.lat, me.lon, p.lat, p.lon) : null;
+    const s = d != null && d <= rule.near ? rule.nearStep : p.local ? (d != null && d > rule.far ? rule.farStep : rule.townStep) : rule.elseStep;
+    step = Math.max(step, s);
+    if (d != null && (!nearest || d < nearest.d)) nearest = { d, name: p.name };
+  });
+  return { ...f, step, mine: true, detail: nearest ? "The nearest work, at " + nearest.name + ", is " + milesText(nearest.d) + " from the location saved on this device." : f.detail };
+}
+
 /* ---- one rule per reading type ---- */
 const RULED = { price: 1, level: 1, status: 1, trains: 1, lines: 1, events: 1, airports: 1 };
 export function calc(f, now = Date.now()) {
@@ -334,11 +356,12 @@ export function calc(f, now = Date.now()) {
     r.lines.push("Status pages score 0 for OK, 10 for minor, 40 for major and 80 for critical.");
     r.why = r.sev ? "It reports a " + f.state + " problem." : "It reports no problems.";
   } else if (k === "lines") {
-    let d = 0, su = 0;
-    arr(f.lines).forEach((l) => { if (l && l.s === "suspended") su++; else if (l && l.s === "delays") d++; });
+    const pick = (s) => arr(f.lines).filter((l) => l && l.s === s).map((l) => l.id);
+    const list = (a) => (a.length > 1 ? a.slice(0, -1).join(", ") + " and " + a[a.length - 1] : a[0]);
+    const dl = pick("delays"), sl = pick("suspended"), d = dl.length, su = sl.length;
     r.sev = Math.min(80, d * 10 + su * 35);
-    r.lines.push("10 per line with delays, 35 per suspended line.");
-    r.why = d || su ? (d ? d + (d === 1 ? " line has" : " lines have") + " delays" : "") + (d && su ? " and " : "") + (su ? su + (su === 1 ? " line is" : " lines are") + " suspended" : "") + "." : "None of your lines has an unplanned alert.";
+    r.lines.push("10 for each line with delays, 35 for each suspended line.");
+    r.why = d || su ? "The " + (d ? list(dl) + (d === 1 ? " line has" : " lines have") + " delays" : "") + (d && su ? ", and the " : "") + (su ? list(sl) + (su === 1 ? " line is" : " lines are") + " suspended" : "") + "." : "None of your lines has an unplanned alert.";
   } else if (k === "count" && num(f.base)) {
     const tol = num(f.tol) || 1.25;
     r.sev = clamp(((num(f.num) || 0) / f.base - tol) * 40, 0, 80);
@@ -417,13 +440,16 @@ export function rowText(f, c, now = Date.now()) {
   if (k === "level") { const s = arr(f.steps); return [String(s[clamp(Math.round(num(f.step) || 0), 0, Math.max(0, s.length - 1))] || "Level " + f.step), String(f.short || "")]; }
   if (k === "status") return [STATE_WORD[f.state] || "Unknown", String(f.short || "")];
   if (k === "trains") {
-    const all = trainList(f), bad = all.filter((t) => t.s === "late" || t.s === "cancelled");
-    const first = arr(f.dirs)[0] && arr(f.dirs[0].trains)[0];
-    return [first ? String(first.t) : "No trains", f.suspended ? "suspended" : bad.length ? bad.length + " of " + all.length + " disrupted" : f.lineDelay ? "line delays" : all.length ? "all on time" : ""];
+    const all = trainList(f), late = all.filter((t) => t.s === "late").length, canc = all.filter((t) => t.s === "cancelled").length;
+    if (f.suspended) return ["Suspended", "line alert"];
+    if (late || canc) return [late ? "Delays" : "Cancelled", late + canc + " of " + all.length + " trains"];
+    if (f.lineDelay) return ["Delays", "up to " + f.lineDelay + " min"];
+    return all.length ? ["On time", all.length === 1 ? "next train" : "next " + all.length + " trains"] : ["No trains", "none due soon"];
   }
   if (k === "lines") {
     const hit = arr(f.lines).filter((l) => l && l.s && l.s !== "ok");
-    return [hit.length ? hit.length + " affected" : "Clear", String(f.short || "")];
+    const ids = (hit.length ? hit : arr(f.lines)).map((l) => l.id).join(", ");
+    return hit.length ? [hit.some((l) => l.s === "suspended") ? "Suspended" : "Delays", ids + (hit.length === 1 ? " line" : " lines")] : ["Normal", ids];
   }
   if (k === "airports") {
     const w = worstAirport(f);
