@@ -70,8 +70,6 @@ jobs:
     needs: run
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # Stays green until Pages is switched on in the repository settings.
-    continue-on-error: true
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
