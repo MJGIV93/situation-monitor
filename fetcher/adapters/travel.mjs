@@ -177,13 +177,13 @@ export default [
       const necWorst = nec.suspended ? "critical" : nec.delay >= 30 ? "major" : nec.lineWide.length ? "minor" : "ok";
       return [
         {
-          ...shared, id: "njt-me", name: "Morristown to Penn Station, NJ Transit", label: "Morristown / Penn", rowLabel: ["Morristown", "to Penn Station"], order: 1,
+          ...shared, id: "njt-me", name: "Morristown to and from Penn Station, NJ Transit", label: "Morristown / Penn", rowLabel: ["Morristown", "to/from Penn Station"], order: 1,
           dirs: penn, track: tally(penn),
           note: "The next three trains each way, from NJ Transit's live departure boards, plus any alert for the whole line." + (banner ? " Station notice: " + clip(banner, 160) : ""),
           source: "https://www.njtransit.com/dv-to/Morristown",
         },
         {
-          ...shared, id: "njt-hob", name: "Morristown to Hoboken, NJ Transit", label: "Morristown / Hoboken", rowLabel: ["Morristown", "to Hoboken"], order: 2, w: 0.5, wWhy: "Hoboken is your backup route",
+          ...shared, id: "njt-hob", name: "Morristown to and from Hoboken, NJ Transit", label: "Morristown / Hoboken", rowLabel: ["Morristown", "to/from Hoboken"], order: 2, w: 0.5, wWhy: "Hoboken is your backup route",
           dirs: hoboken, track: tally(hoboken),
           note: "The next three trains each way, from NJ Transit's live departure boards. PATH covers Hoboken to 33rd Street and has its own reading.",
           source: "https://www.njtransit.com/dv-to/Hoboken",
