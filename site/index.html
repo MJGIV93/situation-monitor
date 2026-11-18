@@ -2,79 +2,654 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="light dark">
 <title>Situation Monitor</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&display=swap">
 <style>
-  :root {
-    --bg: #f4f3ef; --surface: #ffffff; --line: #dcdad2; --fg: #1b1c1a; --dim: #6b6d66;
-    --ok: #2f7d4f; --bad: #b3372c;
+/* Layout: an instrument board. Top row: two dials, the strongest signals, and the latest log. Below: one card per
+   domain, each a stack of instrument rows (label, instrument, value over change). Every row opens to its own detail.
+   Chrome stays neutral; color only marks severity. Phone: the same parts in one column. */
+:root {
+  --bg: #eceff2;
+  --surface: #f9fafb;
+  --sunk: #eef1f4;
+  --line: #d2d8de;
+  --fg: #12171c;
+  --dim: #5a6570;
+  --b0: #1c8a5e;
+  --b1: #8f7c00;
+  --b2: #c4610c;
+  --b3: #c9302c;
+  --b4: #8e1140;
+  --stale: #8d97a1;
+  --f-display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --f-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0d1116; --surface: #141a21; --sunk: #0f141a; --line: #26303a; --fg: #e4e9ee; --dim: #8a96a3;
+    --b0: #46c08f; --b1: #dccb4a; --b2: #f09a3e; --b3: #f25c54; --b4: #ff6aa8; --stale: #5f6b78;
   }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg: #121311; --surface: #1b1c1a; --line: #2e302c; --fg: #ecebe6; --dim: #9a9c94; --ok: #6cc08a; --bad: #ee7b6c; color-scheme: dark; }
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 Barlow, system-ui, sans-serif; }
-  main { max-width: 1100px; margin: 0 auto; padding: 28px max(16px, env(safe-area-inset-right)) 48px max(16px, env(safe-area-inset-left)); }
-  h1 { font: 600 30px/1.1 "Barlow Condensed", Barlow, sans-serif; margin: 0 0 4px; }
-  .sub { color: var(--dim); margin: 0 0 22px; }
-  .tally { font: 600 44px/1 "Barlow Condensed", Barlow, sans-serif; font-variant-numeric: tabular-nums; }
-  .tally small { font: 400 15px Barlow, sans-serif; color: var(--dim); margin-left: 8px; }
-  h2 { font: 600 17px "Barlow Condensed", Barlow, sans-serif; margin: 26px 0 6px; color: var(--dim); }
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; }
-  td { padding: 8px 12px; border-top: 1px solid var(--line); vertical-align: top; }
-  tr:first-child td { border-top: 0; }
-  .n { white-space: nowrap; font-weight: 500; }
-  .s { white-space: nowrap; font-weight: 600; width: 70px; }
-  .s.ok { color: var(--ok); } .s.bad { color: var(--bad); }
-  .d { color: var(--dim); overflow-wrap: anywhere; min-width: 200px; }
-  .t { white-space: nowrap; text-align: right; color: var(--dim); font-variant-numeric: tabular-nums; }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d1116; --surface: #141a21; --sunk: #0f141a; --line: #26303a; --fg: #e4e9ee; --dim: #8a96a3;
+  --b0: #46c08f; --b1: #dccb4a; --b2: #f09a3e; --b3: #f25c54; --b4: #ff6aa8; --stale: #5f6b78;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 15px; line-height: 1.4; font-variant-numeric: tabular-nums; }
+.wrap {
+  max-width: 1760px;
+  margin: 0 auto;
+  padding-block: 16px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+[data-band="0"] { --c: var(--b0); } [data-band="1"] { --c: var(--b1); } [data-band="2"] { --c: var(--b2); } [data-band="3"] { --c: var(--b3); } [data-band="4"] { --c: var(--b4); }
+h1, h2, h3, p, ul { margin: 0; }
+ul { padding: 0; list-style: none; }
+.small { font-size: 13px; color: var(--dim); }
+.card { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+.ctitle { font-family: var(--f-display); font-weight: 600; font-size: 19px; line-height: 1.1; }
+
+/* header */
+.top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 16px; }
+h1 { font-family: var(--f-display); font-weight: 600; font-size: 30px; line-height: 1.05; letter-spacing: 0.01em; }
+.clock { font-size: 15px; color: var(--dim); }
+.status { flex-basis: 100%; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--dim); }
+.dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--stale); }
+.dot.on { background: var(--b0); }
+.banner { border: 1px solid var(--line); background: var(--surface); padding: 10px 12px; font-size: 14px; }
+
+/* board */
+.board { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.board > .signals, .board > .latest { grid-column: 1 / -1; }
+.dial { padding: 14px 12px; display: flex; flex-direction: column; gap: 8px; }
+.dhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.gauge { position: relative; width: 100%; max-width: 250px; align-self: center; }
+.gauge svg { display: block; width: 100%; height: auto; }
+.gauge path { fill: none; }
+.gauge .seg { stroke-width: 10; opacity: 0.28; }
+.gauge .seg.on { opacity: 1; }
+.gauge .tick { stroke: var(--dim); stroke-width: 1.5; }
+.gauge .needle { stroke: var(--fg); stroke-width: 3.5; stroke-linecap: round; transform-box: view-box; transform-origin: 100px 100px; transition: transform 0.8s cubic-bezier(0.3, 1.3, 0.5, 1); }
+.gauge .hub { fill: var(--fg); }
+.gauge.off .needle, .gauge.off .hub { opacity: 0.25; }
+.gauge .read { text-align: center; font-family: var(--f-display); font-weight: 600; font-size: 52px; line-height: 1; }
+.verdict { text-align: center; display: flex; flex-direction: column; gap: 1px; }
+.verdict .bname { font-family: var(--f-display); font-weight: 600; font-size: 17px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--c, var(--dim)); }
+.drivers { border-top: 1px solid var(--line); padding-top: 8px; font-size: 13px; display: flex; flex-direction: column; gap: 3px; }
+.drivers li { display: flex; justify-content: space-between; gap: 8px; color: var(--dim); }
+.drivers b { font-weight: 500; color: var(--fg); }
+.spark { display: block; width: 100%; height: 30px; color: var(--c, var(--dim)); }
+.sparkbox .small { display: block; font-size: 11px; margin-top: 2px; }
+.signals, .latest { padding: 14px 14px 8px; }
+.signals .ctitle, .latest .ctitle { margin-bottom: 6px; }
+.latest li { padding: 7px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.latest li time { display: block; font-size: 11.5px; color: var(--dim); }
+.latest details summary { cursor: pointer; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; color: var(--dim); }
+
+/* domains */
+.domlist { display: flex; flex-direction: column; gap: 12px; }
+.dom { padding: 12px 14px 6px; }
+.domhead { display: flex; align-items: center; gap: 10px; }
+.mark { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--c, transparent); border: 2px solid var(--c, var(--stale)); }
+.grp { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 10px; padding-bottom: 2px; border-bottom: 1px solid var(--line); }
+.grp span { font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--dim); }
+.grp b { font-family: var(--f-display); font-weight: 600; font-size: 19px; line-height: 1; color: var(--c, var(--stale)); }
+
+/* instrument rows */
+.rd + .rd { border-top: 1px solid var(--line); }
+.row { list-style: none; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) 84px 92px; column-gap: 10px; align-items: center; padding: 6px 0; min-height: 44px; }
+.row::-webkit-details-marker { display: none; }
+.row:focus-visible, a:focus-visible, .latest summary:focus-visible, .how summary:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.rk { font-size: 14px; color: var(--dim); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk i { font-style: normal; font-size: 10px; font-weight: 600; letter-spacing: 0.06em; margin-right: 6px; padding: 1px 4px; border: 1px solid var(--line); border-radius: 3px; }
+.rv { text-align: right; min-width: 0; }
+.rv b { display: block; font-weight: 600; font-size: 16px; line-height: 1.15; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv span { display: block; font-size: 11.5px; line-height: 1.2; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rd[data-band] .rv span.hot { color: var(--c); }
+.rd.old .row { opacity: 0.55; }
+.rd.off .rv b { color: var(--stale); font-weight: 500; }
+.rd[open] > .row .rk { color: var(--fg); }
+/* instruments */
+.range { position: relative; height: 6px; border-radius: 3px; background: var(--line); }
+.range u { position: absolute; top: -2px; width: 1px; height: 10px; background: var(--dim); }
+.range i { position: absolute; top: -4px; width: 4px; height: 14px; margin-left: -2px; border-radius: 1px; background: var(--c, var(--fg)); }
+.steps { display: flex; gap: 2px; }
+.steps i { flex: 1; height: 8px; border-radius: 1px; background: var(--line); }
+.steps i.on { background: var(--c, var(--b0)); }
+.pips { display: flex; gap: 4px; justify-content: flex-end; align-items: center; }
+.pips i { width: 9px; height: 9px; border-radius: 50%; background: var(--b0); }
+.pips i[data-s="late"] { background: var(--b1); }
+.pips i[data-s="cancelled"] { background: var(--b3); }
+.pips i.gap { width: 1px; height: 12px; border-radius: 0; background: var(--line); }
+.bullets { display: flex; gap: 3px; justify-content: flex-end; }
+.bullets i { font-style: normal; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--b0); font-size: 11px; font-weight: 600; line-height: 15px; text-align: center; }
+.bullets i[data-s="delays"] { border-color: var(--b2); color: var(--b2); }
+.bullets i[data-s="suspended"] { border-color: var(--b3); color: var(--b3); }
+.lamp { height: 8px; border-radius: 1px; background: var(--c, var(--b0)); }
+.none { height: 1px; background: var(--line); }
+
+/* row detail */
+.det { margin: 0 0 10px; padding: 12px; background: var(--sunk); border: 1px solid var(--line); border-radius: 4px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+.det .chart { display: block; width: 100%; height: 84px; color: var(--c, var(--fg)); }
+.det .cap { display: flex; justify-content: space-between; color: var(--dim); font-size: 11.5px; margin-top: -6px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); gap: 8px 10px; }
+.stats div { min-width: 0; }
+.stats span { display: block; font-size: 11px; color: var(--dim); }
+.stats b { font-weight: 600; font-size: 14px; }
+.ladder li, .tlist li { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; color: var(--dim); }
+.ladder li.cur { color: var(--fg); font-weight: 600; }
+.tlist b { font-weight: 500; color: var(--fg); }
+.tlist .th { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding-top: 6px; }
+.math { border-top: 1px solid var(--line); padding-top: 8px; color: var(--dim); }
+.math b { color: var(--c, var(--fg)); font-weight: 600; }
+.elist li { padding: 6px 0; border-top: 1px solid var(--line); }
+.elist li:first-child { border-top: 0; padding-top: 0; }
+.elist b { display: block; font-weight: 500; color: var(--fg); }
+.elist span { display: block; color: var(--dim); font-size: 12px; }
+.elist li[data-band] span { color: var(--c); }
+.det .meta { color: var(--dim); font-size: 12px; }
+.det .meta a { color: inherit; }
+
+/* tail */
+.tail { display: flex; flex-direction: column; gap: 14px; }
+.foot { font-size: 13px; color: var(--dim); display: flex; flex-direction: column; gap: 6px; }
+.foot a { color: inherit; }
+.how summary { cursor: pointer; font-size: 13px; color: var(--dim); }
+.how p { margin-top: 8px; max-width: 70ch; }
+@media (prefers-reduced-motion: reduce) { .gauge .needle { transition: none; } }
+
+@media (min-width: 720px) {
+  h1 { font-size: 38px; }
+  .wrap { padding-block: 20px 36px; }
+  .dial { padding: 16px; }
+  .gauge .read { font-size: 64px; }
+  .board > .signals, .board > .latest { grid-column: auto; }
+  .domlist { display: block; columns: 4 330px; column-gap: 12px; }
+  .dom { break-inside: avoid; margin: 0 0 12px; }
+  .tail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+}
+@media (min-width: 1000px) {
+  .top { align-items: center; }
+  .status { flex-basis: auto; order: 2; }
+  .clock { order: 3; }
+}
+@media (min-width: 1280px) {
+  .board { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
 </style>
 </head>
 <body>
-<main>
-  <h1>Situation Monitor</h1>
-  <p class="sub">Source check. The dashboard replaces this page once the sources are confirmed.</p>
-  <div class="tally" id="tally">Loading</div>
-  <p class="sub" id="when"></p>
-  <div id="groups"></div>
-</main>
-<script>
-  const fmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+<div class="wrap">
+  <header class="top">
+    <h1>Situation Monitor</h1>
+    <span class="clock" id="clock"></span>
+    <div class="status"><span class="dot" id="dot"></span><span id="statusText">Connecting</span></div>
+  </header>
 
-  async function load() {
-    let report;
-    try {
-      report = await fetch("data/probe.json?t=" + Date.now(), { cache: "no-store" }).then((r) => r.json());
-    } catch (e) {
-      document.getElementById("tally").textContent = "No data yet";
-      return;
+  <div class="banner" id="banner" hidden></div>
+
+  <div class="board">
+    <section class="card dial" id="dialNat" aria-label="USA score">
+      <div class="dhead"><h2 class="ctitle">USA</h2><span class="small">Nationwide</span></div>
+      <div class="gauge"><svg viewBox="0 0 200 108" aria-hidden="true"></svg><div class="read">&ndash;</div></div>
+      <div class="verdict"><span class="bname">No signal</span><span class="small line">Waiting for the first reading.</span><span class="small delta"></span><span class="small old"></span></div>
+      <ul class="drivers"></ul>
+      <div class="sparkbox"></div>
+    </section>
+    <section class="card dial" id="dialHome" aria-label="Home score">
+      <div class="dhead"><h2 class="ctitle">Home</h2><span class="small">Morristown to Manhattan</span></div>
+      <div class="gauge"><svg viewBox="0 0 200 108" aria-hidden="true"></svg><div class="read">&ndash;</div></div>
+      <div class="verdict"><span class="bname">No signal</span><span class="small line">Waiting for the first reading.</span><span class="small delta"></span><span class="small old"></span></div>
+      <ul class="drivers"></ul>
+      <div class="sparkbox"></div>
+    </section>
+    <section class="card signals" id="signals">
+      <h3 class="ctitle">Situations</h3>
+      <div id="signalRows"></div>
+      <p class="small" id="signalNone" hidden>No situations.</p>
+    </section>
+    <section class="card latest" id="latest">
+      <h3 class="ctitle">Log</h3>
+      <ul id="latestTop"></ul>
+      <details id="latestMore" hidden><summary></summary><ul id="latestRest"></ul></details>
+    </section>
+  </div>
+
+  <section class="domlist" id="domlist" aria-label="Domains"></section>
+
+  <div class="tail">
+    <details class="how">
+      <summary>How the scores work</summary>
+      <p class="small">Both scores run 0 to 100 and higher is worse. Every reading is scored 0 to 100 by a fixed rule for its type, and each row shows that rule and its arithmetic when opened. A domain takes its worst reading plus a fifth of the next two. Domains then stack by weight, so several unrelated problems at once raise a score far more than one alone. The points under each dial show how far that score would fall if the domain went quiet.</p>
+      <p class="small">0 to 9 is quiet, 10 to 24 watch, 25 to 49 elevated, 50 to 74 disrupted, 75 and up severe.</p>
+      <p class="small">Readings refresh every 10 minutes, and slower sources hourly. If a source stops answering, its last reading stays up. It is dimmed after 3 hours and stops counting after 24.</p>
+    </details>
+    <div class="foot">
+      <details id="errs" hidden><summary></summary><ul id="errList"></ul></details>
+      <span>Built from public sources. Code and method: <a href="https://github.com/MJGIV93/situation-monitor" target="_blank" rel="noopener noreferrer">github.com/MJGIV93/situation-monitor</a></span>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import {
+  FRESH_MS, SCOPES, BANDS, LINES, TILES, num, arr, clamp, band, tileName, age, live, fresh, commas, fmt, signed,
+  wk, windows, moveOver, moveText, calc, tileScore, dial, rowText,
+} from "./score.js";
+
+const DATA_URL = "data/latest.json";
+const REFRESH_MS = 60 * 1000;
+const LATE_MS = 40 * 60 * 1000;
+const CUTS = [0, 0.1, 0.25, 0.5, 0.75, 1];
+const NS = "http://www.w3.org/2000/svg";
+const wide = window.matchMedia ? window.matchMedia("(min-width: 720px)") : null;
+const state = { feeds: [], scannedAt: null, history: [], log: [], errors: [], loaded: false, problem: "" };
+const open = {};
+let lastLog = null;
+
+const $ = (id) => document.getElementById(id);
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+function ageText(ms) {
+  if (ms == null) return "time unknown";
+  if (ms < 90 * 1000) return "just now";
+  const m = Math.round(ms / 60000);
+  if (m < 60) return m + " min ago";
+  const h = Math.round(m / 60);
+  if (h < 48) return h + " hr ago";
+  return Math.round(h / 24) + " days ago";
+}
+function clockText(d, secs) {
+  const o = { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" };
+  if (secs) o.second = "2-digit";
+  try { return d.toLocaleTimeString("en-US", o) + " ET"; } catch (e) { return d.toTimeString().slice(0, secs ? 8 : 5); }
+}
+function dayText(d) {
+  try { return d.toLocaleDateString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric" }); } catch (e) { return ""; }
+}
+const sev = (f) => f._c.sev;
+
+/* ---- dials ---- */
+function pt(p, r) {
+  const a = Math.PI * (1 - p);
+  return (100 + r * Math.cos(a)).toFixed(2) + " " + (100 - r * Math.sin(a)).toFixed(2);
+}
+function svgEl(tag, cls, attrs) {
+  const e = document.createElementNS(NS, tag);
+  if (cls) e.setAttribute("class", cls);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function initGauge(svg) {
+  const g = 0.006;
+  for (let i = 0; i < 5; i++) {
+    const seg = svgEl("path", "seg", { d: "M" + pt(CUTS[i] + (i ? g : 0), 86) + " A86 86 0 0 1 " + pt(CUTS[i + 1] - (i < 4 ? g : 0), 86) });
+    seg.style.stroke = "var(--b" + i + ")";
+    svg.appendChild(seg);
+  }
+  for (let i = 0; i <= 10; i++) svg.appendChild(svgEl("path", "tick", { d: "M" + pt(i / 10, i % 5 ? 74 : 70) + " L" + pt(i / 10, 77) }));
+  svg.appendChild(svgEl("path", "needle", { d: "M100 100 L36 100" }));
+  svg.appendChild(svgEl("circle", "hub", { cx: 100, cy: 100, r: 5.5 }));
+}
+function setGauge(box, score) {
+  const gauge = box.querySelector(".gauge"), segs = gauge.querySelectorAll(".seg"), b = score == null ? -1 : band(score);
+  gauge.classList.toggle("off", score == null);
+  for (let i = 0; i < segs.length; i++) segs[i].setAttribute("class", i === b ? "seg on" : "seg");
+  gauge.querySelector(".needle").style.transform = "rotate(" + (score == null ? 0 : score * 1.8) + "deg)";
+}
+// Line through a series, scaled to its own low and high, with an optional reference line.
+function lineChart(points, cls, ref, floor) {
+  const svg = svgEl("svg", cls, { viewBox: "0 0 100 40", preserveAspectRatio: "none", role: "img", "aria-label": "Line of the last " + points.length + " values" });
+  let lo = Math.min.apply(null, points), hi = Math.max.apply(null, points);
+  if (ref != null) { lo = Math.min(lo, ref); hi = Math.max(hi, ref); }
+  if (floor != null) { lo = Math.min(lo, floor[0]); hi = Math.max(hi, floor[1]); }
+  const span = hi - lo || 1, y = (v) => (37 - ((v - lo) / span) * 34).toFixed(1);
+  if (ref != null) svg.appendChild(svgEl("path", null, { d: "M0 " + y(ref) + " L100 " + y(ref), fill: "none", stroke: "var(--dim)", "stroke-width": "1", "stroke-dasharray": "2 3", "vector-effect": "non-scaling-stroke" }));
+  svg.appendChild(svgEl("path", null, { d: points.map((v, i) => (i ? "L" : "M") + ((i * 100) / Math.max(1, points.length - 1)).toFixed(1) + " " + y(v)).join(" "), fill: "none", stroke: "currentColor", "stroke-width": "1.6", "stroke-linejoin": "round", "vector-effect": "non-scaling-stroke" }));
+  return svg;
+}
+// The recorded score closest to one hour before the latest point.
+function hourAgo(scope) {
+  const h = state.history;
+  if (h.length < 2) return null;
+  const target = Date.parse(h[h.length - 1].t) - 60 * 60 * 1000;
+  let best = null;
+  for (const p of h) {
+    const t = Date.parse(p.t);
+    if (t <= target + 5 * 60 * 1000 && p[scope] != null) best = p[scope];
+  }
+  return best;
+}
+function renderDial(id, scope) {
+  const box = $(id), r = dial(state.feeds, scope);
+  const drivers = box.querySelector(".drivers"), sparkbox = box.querySelector(".sparkbox");
+  drivers.textContent = "";
+  sparkbox.textContent = "";
+  box.querySelector(".delta").textContent = "";
+  box.querySelector(".old").textContent = r.old ? r.old + " of " + r.live + " readings over 3 hours old" : "";
+  setGauge(box, r.score);
+  if (r.score == null) {
+    box.removeAttribute("data-band");
+    box.querySelector(".read").textContent = "–";
+    box.querySelector(".bname").textContent = "No signal";
+    box.querySelector(".line").textContent = !state.loaded ? "Waiting for the first reading." : r.total ? "No reading in the past 24 hours." : "No readings yet.";
+    drivers.hidden = true;
+    return;
+  }
+  const b = band(r.score);
+  box.setAttribute("data-band", b);
+  box.querySelector(".read").textContent = r.score;
+  box.querySelector(".bname").textContent = BANDS[b];
+  box.querySelector(".line").textContent = LINES[b];
+  drivers.hidden = false;
+  if (r.parts.length) {
+    r.parts.slice(0, 3).forEach((p) => {
+      const li = el("li");
+      li.appendChild(el("span", null, tileName(p.id)));
+      li.appendChild(el("b", null, (p.pts < 10 ? p.pts.toFixed(1) : Math.round(p.pts)) + " pts"));
+      drivers.appendChild(li);
+    });
+  } else {
+    drivers.appendChild(el("li", null, "Nothing is adding to the score."));
+  }
+  const before = hourAgo(scope);
+  if (before != null) {
+    const diff = r.score - before;
+    box.querySelector(".delta").textContent = diff === 0 ? "No change in the past hour" : signed(diff, Math.abs(diff)) + " in the past hour";
+  }
+  const hist = state.history.map((h) => Number(h[scope])).filter(isFinite).slice(-144);
+  if (hist.length >= 3) {
+    sparkbox.appendChild(lineChart(hist, "spark", null, [0, 25]));
+    sparkbox.appendChild(el("span", "small", hist.length >= 138 ? "Past 24 hours" : "Since monitoring started"));
+  }
+}
+
+/* ---- instrument rows ---- */
+function instrument(f, c) {
+  const k = f.kind;
+  let box;
+  if (k === "price" && num(f.lo) != null && num(f.hi) != null) {
+    box = el("div", "range");
+    const med = num(f.med);
+    if (med != null && f.hi > f.lo) { const u = el("u"); u.style.left = (clamp((med - f.lo) / (f.hi - f.lo), 0, 1) * 100).toFixed(1) + "%"; box.appendChild(u); }
+    const m = el("i"); m.style.left = (c.pos * 100).toFixed(1) + "%"; box.appendChild(m);
+    box.title = "12-month range " + fmt(num(f.lo), f.fmt) + " to " + fmt(num(f.hi), f.fmt) + (med != null ? ", median " + fmt(med, f.fmt) : "");
+  } else if (k === "level") {
+    box = el("div", "steps");
+    const n = arr(f.steps).length || 5, st = clamp(Math.round(num(f.step) || 0), 0, n - 1);
+    for (let i = 0; i < n; i++) box.appendChild(el("i", i <= st ? "on" : ""));
+  } else if (k === "trains") {
+    box = el("div", "pips");
+    arr(f.dirs).forEach((d, di) => {
+      if (di) box.appendChild(el("i", "gap"));
+      arr(d && d.trains).slice(0, 3).forEach((t) => { const p = el("i"); p.setAttribute("data-s", String((t && t.s) || "ok")); box.appendChild(p); });
+    });
+  } else if (k === "lines") {
+    box = el("div", "bullets");
+    arr(f.lines).slice(0, 4).forEach((l) => { const p = el("i", null, String((l && l.id) || "")); p.setAttribute("data-s", String((l && l.s) || "ok")); box.appendChild(p); });
+  } else if (k === "count" && num(f.base)) {
+    box = el("div", "range");
+    const u2 = el("u"); u2.style.left = "50%"; box.appendChild(u2);
+    const m2 = el("i"); m2.style.left = (clamp((num(f.num) || 0) / (2 * f.base), 0, 1) * 100).toFixed(1) + "%"; box.appendChild(m2);
+    box.title = "Marker against an average of " + commas(f.base, 1);
+  } else if (k === "status" || k === "events") {
+    box = el("div", "lamp");
+  } else {
+    box = el("div", "none");
+  }
+  return box;
+}
+function metaLine(f) {
+  const meta = el("div", "meta", (f.asOf ? "Data as of " + f.asOf + " · " : "") + "checked " + ageText(age(f.checkedAt)));
+  if (typeof f.source === "string" && /^https:\/\//.test(f.source)) {
+    meta.appendChild(document.createTextNode(" · "));
+    const a = el("a", null, "source");
+    a.href = f.source; a.target = "_blank"; a.rel = "noopener noreferrer";
+    meta.appendChild(a);
+  }
+  return meta;
+}
+function stat(grid, k, v) {
+  const d = el("div");
+  d.appendChild(el("span", null, k));
+  d.appendChild(el("b", null, v));
+  grid.appendChild(d);
+}
+function detail(f, c) {
+  const box = el("div", "det"), k = f.kind, s = arr(f.series).map(num).filter((x) => x != null);
+  if (k === "price") {
+    if (s.length >= 3) {
+      box.appendChild(lineChart(s, "chart", num(f.med)));
+      const cap = el("div", "cap");
+      cap.appendChild(el("span", null, "Last " + s.length + (wk(f) === 1 ? " weeks" : wk(f) === 7 ? " days" : " trading days")));
+      cap.appendChild(el("span", null, num(f.med) != null ? "Dashed: 12-month median" : ""));
+      box.appendChild(cap);
     }
-    const tally = document.getElementById("tally");
-    tally.textContent = report.ok + " of " + report.total;
-    tally.append(el("small", "", "sources answering"));
-    document.getElementById("when").textContent = "Last run " + fmt.format(new Date(report.ranAt)) + " ET";
-
-    const groups = document.getElementById("groups");
-    groups.textContent = "";
-    const byGroup = new Map();
-    for (const r of report.results) { if (!byGroup.has(r.group)) byGroup.set(r.group, []); byGroup.get(r.group).push(r); }
-    for (const [name, rows] of byGroup) {
-      groups.append(el("h2", "", name));
-      const card = el("div", "card"), table = el("table");
-      for (const r of rows) {
-        const tr = el("tr");
-        tr.append(el("td", "n", r.name), el("td", "s " + (r.ok ? "ok" : "bad"), r.ok ? "OK" : "Failed"), el("td", "d", r.detail), el("td", "t", r.ms ? r.ms + " ms" : ""));
-        table.append(tr);
-      }
-      card.append(table); groups.append(card);
+    const g = el("div", "stats"), v = num(f.num);
+    stat(g, "Now", fmt(v, f.fmt));
+    windows(f).forEach((x) => {
+      const m = moveOver(f, x[1]);
+      if (m != null) stat(g, x[0], moveText(f, m));
+    });
+    if (num(f.lo) != null) stat(g, "12-mo low", fmt(num(f.lo), f.fmt));
+    if (num(f.hi) != null) stat(g, "12-mo high", fmt(num(f.hi), f.fmt));
+    if (num(f.med) != null) stat(g, "Median", fmt(num(f.med), f.fmt));
+    box.appendChild(g);
+  } else if (k === "level") {
+    const ul = el("ul", "ladder"), steps = arr(f.steps), cur = clamp(Math.round(num(f.step) || 0), 0, Math.max(0, steps.length - 1));
+    steps.forEach((name, i) => {
+      const li = el("li", i === cur ? "cur" : "");
+      li.appendChild(el("span", null, String(name)));
+      li.appendChild(el("span", null, String(arr(f.ladder)[i] || "")));
+      ul.appendChild(li);
+    });
+    box.appendChild(ul);
+    if (f.detail) box.appendChild(el("div", null, String(f.detail)));
+  } else if (k === "trains") {
+    const tl = el("ul", "tlist");
+    arr(f.dirs).forEach((d) => {
+      tl.appendChild(el("li", "th", String((d && d.to) || "")));
+      const trains = arr(d && d.trains);
+      if (!trains.length) tl.appendChild(el("li", null, "No trains listed right now."));
+      trains.forEach((t) => {
+        const li = el("li");
+        li.appendChild(el("b", null, String(t.t || "") + (t.n ? "  #" + t.n : "")));
+        li.appendChild(el("span", null, t.s === "cancelled" ? "Cancelled" : t.s === "late" ? "Late" + (t.d ? " " + t.d + " min" : "") : "On time"));
+        tl.appendChild(li);
+      });
+    });
+    box.appendChild(tl);
+  } else if (k === "lines") {
+    const ll = el("ul", "tlist");
+    arr(f.lines).forEach((l) => {
+      const li = el("li");
+      li.appendChild(el("b", null, String(l.id || "") + " train"));
+      li.appendChild(el("span", null, l.s === "suspended" ? "Suspended" : l.s === "delays" ? "Delays" : "No alerts"));
+      ll.appendChild(li);
+    });
+    box.appendChild(ll);
+  } else if (k === "events") {
+    const evs = arr(f.events);
+    if (evs.length) {
+      const ul = el("ul", "elist");
+      evs.forEach((e, i) => {
+        const pts = arr(c.ev)[i] || 0, li = el("li");
+        if (pts > 0) li.setAttribute("data-band", band(pts));
+        li.appendChild(el("b", null, String(e.event || e.title || "Event")));
+        li.appendChild(el("span", null, [e.text, pts > 0 ? "scores " + pts : ""].filter(Boolean).join(" · ")));
+        ul.appendChild(li);
+      });
+      box.appendChild(ul);
+    } else {
+      box.appendChild(el("div", null, "Nothing active."));
     }
   }
-  load();
-  setInterval(load, 60000);
+  const items = arr(f.items).filter((x) => typeof x === "string" && x);
+  if (items.length) {
+    const il = el("ul", "tlist");
+    items.forEach((x) => il.appendChild(el("li", null, x)));
+    box.appendChild(il);
+  }
+  if (f.note) box.appendChild(el("div", null, String(f.note)));
+  const math = el("div", "math");
+  math.appendChild(el("b", null, "Score " + Math.round(c.sev) + " · " + BANDS[band(c.sev)]));
+  c.lines.forEach((t) => math.appendChild(el("div", null, t)));
+  box.appendChild(math);
+  box.appendChild(metaLine(f));
+  return box;
+}
+function row(f, tag, key) {
+  const c = f._c, ok = live(f), d = el("details", "rd" + (ok ? (fresh(f) ? "" : " old") : " off"));
+  const id = key + ":" + f.id;
+  if (open[id]) d.open = true;
+  d.addEventListener("toggle", () => { open[id] = d.open; });
+  if (ok && band(c.sev) > 0) d.setAttribute("data-band", band(c.sev));
+  const s = el("summary", "row"), k = el("span", "rk");
+  if (tag) k.appendChild(el("i", null, tag));
+  k.appendChild(document.createTextNode(String(f.label || f.name || "Reading")));
+  k.title = String(f.name || "");
+  s.appendChild(k);
+  s.appendChild(ok ? instrument(f, c) : el("div", "none"));
+  const t = rowText(f, c), v = el("span", "rv");
+  v.appendChild(el("b", null, t[0]));
+  v.appendChild(el("span", ok && band(c.sev) > 0 ? "hot" : "", t[1] + (ok && !fresh(f) ? (t[1] ? " · " : "") + ageText(age(f.checkedAt)).replace(" ago", " old") : "")));
+  s.appendChild(v);
+  d.appendChild(s);
+  d.appendChild(detail(f, c));
+  return d;
+}
+
+function renderSignals() {
+  const host = $("signalRows");
+  host.textContent = "";
+  const top = state.feeds.filter((f) => live(f)).filter((f) => sev(f) >= 10).sort((a, b) => sev(b) - sev(a)).slice(0, 6);
+  top.forEach((f) => host.appendChild(row(f, f.scope === "home" ? "HOME" : "USA", "sig")));
+  $("signalNone").hidden = top.length > 0 || !state.loaded;
+}
+function renderDomains() {
+  const host = $("domlist");
+  host.textContent = "";
+  TILES.forEach((t) => {
+    const feeds = state.feeds.filter((f) => f.tile === t.id);
+    if (!feeds.length) return;
+    const card = el("section", "card dom"), head = el("div", "domhead");
+    let worst = -1;
+    head.appendChild(el("span", "mark"));
+    head.appendChild(el("h3", "ctitle", t.name));
+    card.appendChild(head);
+    SCOPES.forEach((sc) => {
+      const gf = feeds.filter((f) => f.scope === sc[0]).sort((a, b) => live(b) - live(a) || sev(b) - sev(a) || String(a.label).localeCompare(String(b.label)));
+      if (!gf.length) return;
+      const gl = gf.filter((f) => live(f)), g = el("div", "grp"), gs = el("b", null, "–");
+      if (gl.length) {
+        const ts = Math.round(tileScore(gl.map(sev)));
+        worst = Math.max(worst, ts);
+        gs.textContent = String(ts);
+        g.setAttribute("data-band", band(ts));
+      }
+      g.appendChild(el("span", null, sc[1]));
+      g.appendChild(gs);
+      card.appendChild(g);
+      gf.forEach((f) => card.appendChild(row(f, "", "dom")));
+    });
+    if (worst >= 0) head.setAttribute("data-band", band(worst));
+    host.appendChild(card);
+  });
+}
+function renderStatus() {
+  const a = age(state.scannedAt);
+  const nLive = state.feeds.filter((f) => live(f)).length, nOld = nLive - state.feeds.filter((f) => fresh(f)).length;
+  const nErr = state.errors.length;
+  $("dot").className = a != null && a < LATE_MS ? "dot on" : "dot";
+  $("statusText").textContent = a == null
+    ? (state.loaded ? "No readings on record" : "Connecting")
+    : "Updated " + clockText(new Date(Date.parse(state.scannedAt))) + ", " + ageText(a) + " · " + state.feeds.length + " readings" + (nOld ? ", " + nOld + " over 3 hours old" : "") + (nErr ? " · " + nErr + (nErr === 1 ? " source" : " sources") + " not answering" : "");
+
+  const key = state.log.map((x) => x.t + x.text).join("|") + (wide && wide.matches ? "|w" : "");
+  if (key !== lastLog) {
+    lastLog = key;
+    const top = $("latestTop"), rest = $("latestRest"), more = $("latestMore");
+    top.textContent = "";
+    rest.textContent = "";
+    const show = wide && wide.matches ? 6 : 4, today = dayText(new Date());
+    state.log.forEach((x, i) => {
+      const li = el("li"), d = new Date(Date.parse(x.t)), day = dayText(d);
+      li.appendChild(el("time", null, (day && day !== today ? day + ", " : "") + clockText(d)));
+      li.appendChild(document.createTextNode(String(x.text || "")));
+      (i < show ? top : rest).appendChild(li);
+    });
+    more.hidden = state.log.length <= show;
+    more.querySelector("summary").textContent = state.log.length - show + " more";
+    $("latest").hidden = !state.log.length;
+  }
+
+  const errs = $("errs");
+  errs.hidden = !nErr;
+  if (nErr) {
+    errs.querySelector("summary").textContent = nErr + (nErr === 1 ? " source" : " sources") + " not answering";
+    const list = $("errList");
+    list.textContent = "";
+    state.errors.forEach((e) => list.appendChild(el("li", null, e.id + ": " + e.msg + " (since " + clockText(new Date(Date.parse(e.since))) + ")")));
+  }
+}
+function render() {
+  const a = age(state.scannedAt);
+  const late = a != null && a > LATE_MS ? "The monitor last updated " + ageText(a) + ". Its scheduler is running late, so readings below may be out of date." : "";
+  const b = $("banner"), msg = state.problem || late;
+  b.hidden = !msg;
+  b.textContent = msg;
+  renderStatus();
+  renderDial("dialNat", "national");
+  renderDial("dialHome", "home");
+  renderSignals();
+  renderDomains();
+}
+
+async function load() {
+  try {
+    const res = await fetch(DATA_URL + "?t=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    state.scannedAt = data.scannedAt || null;
+    state.feeds = arr(data.feeds).filter((f) => f && !f.hidden).map((f) => ({ ...f, _c: calc(f) }));
+    state.history = arr(data.history).filter((p) => p && typeof p === "object");
+    state.log = arr(data.log).filter((x) => x && x.text);
+    state.errors = arr(data.errors);
+    state.problem = "";
+  } catch (e) {
+    state.problem = state.feeds.length ? "Can't reach the readings right now. What's shown may be out of date." : "Can't reach the readings yet. They'll appear when the connection comes back.";
+  }
+  state.loaded = true;
+  render();
+}
+
+function tick() { $("clock").textContent = clockText(new Date(), true); }
+Array.prototype.forEach.call(document.querySelectorAll(".gauge svg"), initGauge);
+tick();
+setInterval(tick, 1000);
+render();
+load();
+setInterval(load, REFRESH_MS);
+// Scores that depend on the clock, like an alert about to start, are recomputed between loads.
+setInterval(() => { state.feeds.forEach((f) => { f._c = calc(f); }); render(); }, 5 * 60 * 1000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+if (wide && wide.addEventListener) wide.addEventListener("change", render);
 </script>
 </body>
 </html>

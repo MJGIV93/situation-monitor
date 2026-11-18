@@ -35,11 +35,13 @@ jobs:
             git archive FETCH_HEAD | tar -x -C out
           fi
 
-      - name: Probe sources
-        run: node fetcher/probe.mjs
+      - name: Fetch and score
+        run: node fetcher/run.mjs
 
       - name: Trim run log
-        run: tail -n 2000 out/probe-log.jsonl > out/log.tmp && mv out/log.tmp out/probe-log.jsonl
+        run: |
+          tail -n 3000 out/runs.jsonl > out/runs.tmp && mv out/runs.tmp out/runs.jsonl
+          rm -f out/probe.json out/probe-log.jsonl
 
       - name: Save data
         env:
@@ -58,7 +60,7 @@ jobs:
         run: |
           mkdir -p _site/data
           cp -r site/. _site/
-          cp out/*.json out/*.jsonl _site/data/
+          cp out/latest.json _site/data/
 
       - uses: actions/upload-pages-artifact@v3
         with:
