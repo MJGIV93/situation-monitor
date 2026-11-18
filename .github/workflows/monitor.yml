@@ -56,11 +56,34 @@ jobs:
           git commit --quiet --message "data $(date -u +%FT%TZ)"
           git push --quiet --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" data
 
+      # Once a day, a copy of the data is committed to a branch that keeps its history.
+      - name: Daily backup
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          today=$(date -u +%F)
+          rm -rf /tmp/hist && mkdir /tmp/hist && cd /tmp/hist
+          git init --quiet --initial-branch data-history
+          git config user.name "situation-monitor"
+          git config user.email "situation-monitor@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git fetch --quiet --depth 1 origin data-history 2>/dev/null; then
+            git reset --quiet --soft FETCH_HEAD
+            if [ "$(git log -1 --format=%cd --date=format:%F)" = "$today" ]; then exit 0; fi
+          fi
+          cp -r "$GITHUB_WORKSPACE/out/archive" .
+          cp "$GITHUB_WORKSPACE/out/state.json" "$GITHUB_WORKSPACE/out/runs.jsonl" .
+          git add --all
+          git commit --quiet --message "backup $today"
+          git push --quiet origin data-history
+
       - name: Build site
         run: |
           mkdir -p _site/data
           cp -r site/. _site/
           cp out/latest.json _site/data/
+          # Stamp the build so browsers fetch the scoring rules that match this page.
+          sed -i "s/__BUILD__/${GITHUB_SHA::7}/g" _site/index.html
 
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -355,7 +355,7 @@ body.wall .tail, body.wall .how { display: none; }
     <div class="foot">
       <details id="errs" hidden><summary></summary><ul id="errList"></ul></details>
       <span>Military aircraft data from <a href="https://adsb.fi/" target="_blank" rel="noopener noreferrer">adsb.fi</a>. Pizza index from <a href="https://www.pizzint.watch/" target="_blank" rel="noopener noreferrer">PizzINT</a>.</span>
-      <span>Built from public sources. Code and method: <a href="https://github.com/MJGIV93/situation-monitor" target="_blank" rel="noopener noreferrer">github.com/MJGIV93/situation-monitor</a></span>
+      <span>Version 0.1, build __BUILD__. Built from public sources. Code and method: <a href="https://github.com/MJGIV93/situation-monitor" target="_blank" rel="noopener noreferrer">github.com/MJGIV93/situation-monitor</a></span>
     </div>
   </div>
 </div>
@@ -373,7 +373,7 @@ body.wall .tail, body.wall .how { display: none; }
 import {
   FRESH_MS, SCOPES, BANDS, LINES, TILES, num, arr, clamp, band, tileName, age, live, fresh, commas, fmt, signed,
   wk, windows, moveOver, moveText, calc, tileScore, dial, rowText,
-} from "./score.js";
+} from "./score.js?v=__BUILD__";
 
 const DATA_URL = "data/latest.json";
 const REFRESH_MS = 60 * 1000;
