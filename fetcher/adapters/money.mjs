@@ -21,7 +21,8 @@ export async function cboe(ctx, sym, scale = 1) {
   const q = json(await fetchOk(ctx, `https://cdn.cboe.com/api/global/delayed_quotes/quotes/${sym}.json`)).data;
   need(q?.current_price > 0, "no Cboe quote");
   const day = String(q.last_trade_time).slice(0, 10);
-  return { hist: [...closes.filter(([d]) => d < day).map((x) => x[1] * scale), q.current_price * scale], asOf: cboeTime(String(q.last_trade_time)) };
+  const past = closes.filter(([d]) => d < day);
+  return { hist: [...past.map((x) => x[1] * scale), q.current_price * scale], dates: [...past.map((x) => x[0]), day], asOf: cboeTime(String(q.last_trade_time)) };
 }
 // Daily closes from Coinbase with the live trade as the last point.
 async function coinbase(ctx, pair) {
@@ -34,7 +35,8 @@ async function coinbase(ctx, pair) {
   const t = json(await fetchOk(ctx, `${api}/ticker`));
   need(Number(t.price) > 0, "no Coinbase price");
   const today = Math.floor(Date.parse(t.time) / 86400e3) * 86400;
-  return { hist: [...candles.filter(([d]) => d < today).map((x) => x[1]), Number(t.price)], asOf: etStamp(Date.parse(t.time)) };
+  const past = candles.filter(([d]) => d < today), ymd = (sec) => new Date(sec * 1000).toISOString().slice(0, 10);
+  return { hist: [...past.map((x) => x[1]), Number(t.price)], dates: [...past.map((x) => ymd(x[0])), ymd(today)], asOf: etStamp(Date.parse(t.time)) };
 }
 // Daily closes from Yahoo with the delayed futures quote as the last point.
 export async function yahoo(ctx, sym) {
@@ -43,13 +45,20 @@ export async function yahoo(ctx, sym) {
   need(m?.regularMarketPrice > 0 && Array.isArray(r.timestamp), "no Yahoo quote");
   const closes = r.indicators.quote[0].close;
   // The final bar is the live session. Earlier bars with no close are skipped.
-  const past = closes.slice(0, -1).filter((x) => typeof x === "number" && x > 0);
+  const ymd = (sec) => new Date((sec + (m.gmtoffset ?? 0)) * 1000).toISOString().slice(0, 10);
+  const past = [], dates = [];
+  let gap = null;
+  closes.slice(0, -1).forEach((x, i) => {
+    if (typeof x === "number" && x > 0) { past.push(x); dates.push(ymd(r.timestamp[i])); gap = null; }
+    else gap = r.timestamp[i];
+  });
+  // After hours the latest full session has no bar yet. Its settlement price comes from the quote.
   const pctToday = m.regularMarketChangePercent;
   if (typeof pctToday === "number") {
     const prev = m.regularMarketPrice / (1 + pctToday / 100);
-    if (Math.abs(prev - past.at(-1)) / prev > 0.0005) past.push(prev);
+    if (Math.abs(prev - past.at(-1)) / prev > 0.0005) { past.push(prev); dates.push(ymd(gap ?? r.timestamp.at(-2))); }
   }
-  return { hist: [...past, m.regularMarketPrice], asOf: etStamp(m.regularMarketTime * 1000) };
+  return { hist: [...past, m.regularMarketPrice], dates: [...dates, ymd(m.regularMarketTime)], asOf: etStamp(m.regularMarketTime * 1000) };
 }
 export async function fred(ctx, id) {
   const rows = await ctx.memo("fred-" + id, 60, async () => fredRows(await fetchOk(ctx, fredUrl(id))));
@@ -64,8 +73,8 @@ export function price(id, base, load) {
     id,
     every: 10,
     async run(ctx) {
-      const { hist, asOf, perWeek = 5, extra = {} } = await load(ctx);
-      return { tile: "money", scope: "national", kind: "price", ...base, ...priceFields(hist, perWeek, base.chg ?? "pct"), asOf, ...extra };
+      const { hist, dates, asOf, perWeek = 5, extra = {} } = await load(ctx);
+      return { tile: "money", scope: "national", kind: "price", ...base, ...priceFields(hist, perWeek, base.chg ?? "pct", dates), asOf, ...extra };
     },
   };
 }
@@ -104,7 +113,7 @@ export default [
     source: "https://fred.stlouisfed.org/series/BAMLH0A0HYM2",
   }, async (ctx) => {
     const rows = await fred(ctx, "BAMLH0A0HYM2");
-    return { hist: rows.map((r) => r.v), asOf: dayLabel(rows.at(-1).date) + " close" };
+    return { hist: rows.map((r) => r.v), dates: rows.map((r) => r.date), asOf: dayLabel(rows.at(-1).date) + " close" };
   }),
   price("stlfsi", {
     name: "St. Louis Fed Financial Stress Index", label: "Fed stress", fmt: "num2", bad: "high", chg: "abs",
@@ -113,7 +122,7 @@ export default [
     source: "https://fred.stlouisfed.org/series/STLFSI4",
   }, async (ctx) => {
     const rows = await fred(ctx, "STLFSI4");
-    return { hist: rows.map((r) => r.v), asOf: "week of " + dayLabel(rows.at(-1).date), perWeek: 1 };
+    return { hist: rows.map((r) => r.v), dates: rows.map((r) => r.date), asOf: "week of " + dayLabel(rows.at(-1).date), perWeek: 1 };
   }),
   {
     id: "fed-services",

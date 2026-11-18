@@ -39,12 +39,18 @@ async function get(url, opts = {}) {
     return reply(JSON.stringify({ data: { getTrainDepartureScreens: { items: NJT[body.variables.station], bannerMsg: "" } } }));
   }
   if (/offset=[1-9]/.test(url)) return reply(JSON.stringify({ results: [] }));
+  if (url.includes("nvd.nist.gov") && now - Date.parse(new URL(url).searchParams.get("pubStartDate") + "Z") > 30 * 86400e3) return reply(await readFile(`${dir}/nvd-critical-90.txt`, "utf8"));
   const hit = index.find((x) => x.url === url) ?? index.find((x) => key(x.url) === key(url));
   if (!hit) return { ok: false, status: 0, type: "", text: "", ms: 1, error: "no sample for " + url };
   return { ok: hit.status >= 200 && hit.status < 300, status: hit.status, type: hit.type, text: await readFile(`${dir}/${hit.name}.txt`, "utf8"), ms: 1 };
 }
 
-const { latest, summary } = await runOnce({ get, now, state: {}, event: "replay" });
+const shared = {};
+let latest, summary;
+for (let i = 5; i >= 0; i--) {
+  if (i === 2) NJT.MR[1].status = "Late 25 Min";
+  ({ latest, summary } = await runOnce({ get, now: now - i * 600e3, state: shared, event: "replay" }));
+}
 for (const f of latest.feeds.sort((a, b) => (a.tile + a.scope).localeCompare(b.tile + b.scope))) {
   const c = calc(f, now);
   console.log(`${f.tile.padEnd(7)}${f.scope.padEnd(9)}${String(c.sev).padStart(3)}  ${f.label.padEnd(20)} ${rowText(f, c, now).join(" | ")}`);

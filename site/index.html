@@ -143,6 +143,9 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: 30px; line-heig
 /* row detail */
 .det { margin: 0 0 10px; padding: 12px; background: var(--sunk); border: 1px solid var(--line); border-radius: 4px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
 .det .chart { display: block; width: 100%; height: 84px; color: var(--c, var(--fg)); }
+.axis { position: relative; height: 15px; margin-top: -6px; font-size: 11px; color: var(--dim); }
+.axis span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+.axis span.edge { transform: none; }
 .det .cap { display: flex; justify-content: space-between; color: var(--dim); font-size: 11.5px; margin-top: -6px; }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); gap: 8px 10px; }
 .stats div { min-width: 0; }
@@ -174,6 +177,19 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: 30px; line-heig
 .pval span { display: block; margin-top: 3px; font-size: 13px; color: var(--c, var(--dim)); }
 .panel .det { margin: 0; padding: 0; background: none; border: 0; gap: 12px; font-size: 14px; }
 .panel .det .chart { height: 130px; }
+.psec { border-top: 1px solid var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
+.psec h4 { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--dim); }
+.psec .trail { display: block; width: 100%; height: 46px; color: var(--c, var(--dim)); }
+.psec .cap { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--dim); }
+.psec li { padding: 5px 0; }
+.psec li time { display: block; font-size: 11.5px; color: var(--dim); }
+.sib { appearance: none; -webkit-appearance: none; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: baseline; width: 100%; min-height: 36px; padding: 7px 0; border: 0; border-top: 1px solid var(--line); background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.sib:first-of-type { border-top: 0; }
+.sib span { color: var(--dim); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sib b { font-weight: 600; white-space: nowrap; }
+.sib[data-band] b { color: var(--c); }
+.sib:hover span, .sib:focus-visible span { color: var(--fg); }
+.sib:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 @keyframes sheetUp { from { transform: translateY(24px); opacity: 0; } }
 @keyframes slideFromRight { from { transform: translateX(24px); opacity: 0; } }
 @keyframes slideFromLeft { from { transform: translateX(-24px); opacity: 0; } }
@@ -286,7 +302,7 @@ const LATE_MS = 40 * 60 * 1000;
 const CUTS = [0, 0.1, 0.25, 0.5, 0.75, 1];
 const NS = "http://www.w3.org/2000/svg";
 const wide = window.matchMedia ? window.matchMedia("(min-width: 720px)") : null;
-const state = { feeds: [], scannedAt: null, history: [], log: [], errors: [], loaded: false, problem: "" };
+const state = { feeds: [], scannedAt: null, history: [], log: [], errors: [], trailT: [], trails: {}, loaded: false, problem: "" };
 let sel = null; // id of the reading shown in the detail panel
 let selSide = "right";
 let lastLog = null;
@@ -346,12 +362,13 @@ function setGauge(box, score) {
   gauge.querySelector(".needle").style.transform = "rotate(" + (score == null ? 0 : score * 1.8) + "deg)";
 }
 // Line through a series, scaled to its own low and high, with an optional reference line.
-function lineChart(points, cls, ref, floor) {
+function lineChart(points, cls, ref, floor, marks) {
   const svg = svgEl("svg", cls, { viewBox: "0 0 100 40", preserveAspectRatio: "none", role: "img", "aria-label": "Line of the last " + points.length + " values" });
   let lo = Math.min.apply(null, points), hi = Math.max.apply(null, points);
   if (ref != null) { lo = Math.min(lo, ref); hi = Math.max(hi, ref); }
   if (floor != null) { lo = Math.min(lo, floor[0]); hi = Math.max(hi, floor[1]); }
   const span = hi - lo || 1, y = (v) => (37 - ((v - lo) / span) * 34).toFixed(1);
+  arr(marks).forEach((x) => svg.appendChild(svgEl("path", null, { d: "M" + x.toFixed(1) + " 0 L" + x.toFixed(1) + " 40", fill: "none", stroke: "var(--line)", "stroke-width": "1", "vector-effect": "non-scaling-stroke" })));
   if (ref != null) svg.appendChild(svgEl("path", null, { d: "M0 " + y(ref) + " L100 " + y(ref), fill: "none", stroke: "var(--dim)", "stroke-width": "1", "stroke-dasharray": "2 3", "vector-effect": "non-scaling-stroke" }));
   svg.appendChild(svgEl("path", null, { d: points.map((v, i) => (i ? "L" : "M") + ((i * 100) / Math.max(1, points.length - 1)).toFixed(1) + " " + y(v)).join(" "), fill: "none", stroke: "currentColor", "stroke-width": "1.6", "stroke-linejoin": "round", "vector-effect": "non-scaling-stroke" }));
   return svg;
@@ -447,6 +464,20 @@ function instrument(f, c) {
   }
   return box;
 }
+// Where each new month starts along a series, as a percentage across the chart.
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function monthMarks(f, n) {
+  const d = arr(f.dates);
+  if (d.length !== n || n < 3) return [];
+  const out = [];
+  for (let i = 1; i < n; i++) {
+    const a = String(d[i - 1]).slice(0, 7), b = String(d[i]).slice(0, 7);
+    if (a === b) continue;
+    const month = Number(b.slice(5, 7)) - 1;
+    out.push({ x: (i * 100) / (n - 1), label: MONTH_NAMES[month] + (month === 0 ? " '" + b.slice(2, 4) : "") });
+  }
+  return out;
+}
 function metaLine(f) {
   const meta = el("div", "meta", (f.asOf ? "Data as of " + f.asOf + " · " : "") + "checked " + ageText(age(f.checkedAt)));
   if (typeof f.source === "string" && /^https:\/\//.test(f.source)) {
@@ -467,7 +498,20 @@ function detail(f, c) {
   const box = el("div", "det"), k = f.kind, s = arr(f.series).map(num).filter((x) => x != null);
   if (k === "price") {
     if (s.length >= 3) {
-      box.appendChild(lineChart(s, "chart", num(f.med)));
+      const months = monthMarks(f, s.length);
+      box.appendChild(lineChart(s, "chart", num(f.med), null, months.map((m) => m.x)));
+      if (months.length) {
+        const axis = el("div", "axis");
+        let lastX = -100;
+        months.forEach((m) => {
+          if (m.x - lastX < 9 || m.x > 96) return;
+          lastX = m.x;
+          const lab = el("span", m.x < 4 ? "edge" : "", m.label);
+          lab.style.left = m.x.toFixed(1) + "%";
+          axis.appendChild(lab);
+        });
+        box.appendChild(axis);
+      }
       const cap = el("div", "cap");
       cap.appendChild(el("span", null, "Last " + s.length + (wk(f) === 1 ? " weeks" : wk(f) === 7 ? " days" : " trading days")));
       cap.appendChild(el("span", null, num(f.med) != null ? "Dashed: 12-month median" : ""));
@@ -595,7 +639,73 @@ function renderPanel() {
   val.appendChild(ok ? instrument(f, c) : el("div", "none"));
   body.appendChild(val);
   body.appendChild(detail(f, c));
+  panelExtras(f, c).forEach((sec) => body.appendChild(sec));
   body.scrollTop = top;
+}
+function section(title) {
+  const s = el("section", "psec");
+  s.appendChild(el("h4", null, title));
+  return s;
+}
+// Everything the panel shows beyond the reading itself: its score over the past day,
+// what it does to the dial, the other readings beside it, and its lines in the log.
+function panelExtras(f, c) {
+  const out = [], scopeName = f.scope === "home" ? "Home" : "USA";
+
+  const trail = arr(state.trails[f.id]), times = state.trailT;
+  const pts = trail.map((v, i) => [times[i], v]).filter((p) => p[1] != null && p[0] != null);
+  if (pts.length >= 3) {
+    const s = section("Score over the past day"), vals = pts.map((p) => p[1]), peak = Math.max.apply(null, vals);
+    const chart = lineChart(vals, "trail", null, [0, 25]);
+    s.appendChild(chart);
+    const cap = el("div", "cap"), at = new Date(pts[vals.indexOf(peak)][0] * 60000), span = (pts[pts.length - 1][0] - pts[0][0]) / 60;
+    cap.appendChild(el("span", null, span >= 1.5 ? "Past " + Math.round(span) + " hours" : "Past " + Math.round(span * 60) + " minutes"));
+    cap.appendChild(el("span", null, peak > 0 ? "Peak " + peak + " at " + clockText(at) : "No score in that time"));
+    s.appendChild(cap);
+    out.push(s);
+  }
+
+  if (live(f)) {
+    const s = section("Effect on " + scopeName), now = dial(state.feeds, f.scope), without = dial(state.feeds.filter((x) => x.id !== f.id), f.scope);
+    const part = now.parts.find((p) => p.id === f.tile);
+    if (now.score != null && without.score != null) {
+      const diff = now.score - without.score;
+      s.appendChild(el("div", null, diff > 0
+        ? scopeName + " is at " + now.score + ". Without this reading it would be " + without.score + "."
+        : "It isn't adding to the " + scopeName + " score right now, which is " + now.score + "."));
+      s.appendChild(el("div", "small", tileName(f.tile) + " as a whole adds " + (part ? (part.pts < 10 ? part.pts.toFixed(1) : Math.round(part.pts)) : 0) + " points."));
+      out.push(s);
+    }
+  }
+
+  const sibs = state.feeds.filter((x) => x.tile === f.tile && x.scope === f.scope && x.id !== f.id).sort((a, b) => sev(b) - sev(a) || String(a.label).localeCompare(String(b.label)));
+  if (sibs.length) {
+    const s = section("Also in " + tileName(f.tile) + ", " + scopeName);
+    sibs.forEach((x) => {
+      const b = el("button", "sib"), t = rowText(x, x._c);
+      b.type = "button";
+      if (live(x) && band(sev(x)) > 0) b.setAttribute("data-band", band(sev(x)));
+      b.appendChild(el("span", null, String(x.label || x.name)));
+      b.appendChild(el("b", null, t[0]));
+      b.addEventListener("click", () => { sel = x.id; $("panelBody").scrollTop = 0; render(); });
+      s.appendChild(b);
+    });
+    out.push(s);
+  }
+
+  const mine = state.log.filter((x) => x.id === f.id).slice(0, 4);
+  if (mine.length) {
+    const s = section("Recent changes"), ul = el("ul"), today = dayText(new Date());
+    mine.forEach((x) => {
+      const li = el("li"), d = new Date(Date.parse(x.t)), day = dayText(d);
+      li.appendChild(el("time", null, (day && day !== today ? day + ", " : "") + clockText(d)));
+      li.appendChild(document.createTextNode(String(x.text || "").replace(/^[^:]+:\s*/, "")));
+      ul.appendChild(li);
+    });
+    s.appendChild(ul);
+    out.push(s);
+  }
+  return out;
 }
 function closePanel() {
   if (!sel) return;
@@ -706,6 +816,8 @@ async function load() {
     state.history = arr(data.history).filter((p) => p && typeof p === "object");
     state.log = arr(data.log).filter((x) => x && x.text);
     state.errors = arr(data.errors);
+    state.trailT = arr(data.trailT);
+    state.trails = data.trails && typeof data.trails === "object" ? data.trails : {};
     state.problem = "";
   } catch (e) {
     state.problem = state.feeds.length ? "Can't reach the readings right now. What's shown may be out of date." : "Can't reach the readings yet. They'll appear when the connection comes back.";

@@ -7,7 +7,7 @@ const fuel = { tile: "fuel", bad: "high", chg: "pct" };
 function weekly(id, base, series) {
   return price(id, { ...fuel, fmt: "usd2", ...base }, async (ctx) => {
     const rows = await fred(ctx, series);
-    return { hist: rows.map((r) => r.v), asOf: "week of " + dayLabel(rows.at(-1).date), perWeek: 1 };
+    return { hist: rows.map((r) => r.v), dates: rows.map((r) => r.date), asOf: "week of " + dayLabel(rows.at(-1).date), perWeek: 1 };
   });
 }
 
@@ -23,7 +23,7 @@ export default [
       // Daily spot price from the Energy Department, which runs about a week behind.
       const rows = await fred(ctx, "DCOILWTICO");
       return {
-        hist: rows.map((r) => r.v), asOf: dayLabel(rows.at(-1).date) + " close",
+        hist: rows.map((r) => r.v), dates: rows.map((r) => r.date), asOf: dayLabel(rows.at(-1).date) + " close",
         extra: { note: "West Texas Intermediate spot price. The live source didn't answer, so this is the backup, which runs about a week behind.", source: "https://fred.stlouisfed.org/series/DCOILWTICO" },
       };
     }
@@ -50,8 +50,8 @@ export default [
       days[day(0)] = now;
       for (const [back, v] of [[1, yesterday], [7, week], [30, month], [365, year]]) days[day(back)] ??= v;
       for (const k of Object.keys(days)) if (k < day(800)) delete days[k];
-      const own = [];
-      for (let w = 0; w <= 52 && days[day(w * 7)] != null; w++) own.unshift(days[day(w * 7)]);
+      const own = [], ownDates = [];
+      for (let w = 0; w <= 52 && days[day(w * 7)] != null; w++) { own.unshift(days[day(w * 7)]); ownDates.unshift(day(w * 7)); }
 
       // Until a year of its own history exists, the range and what counts as a large
       // move come from the US weekly series, shifted to New Jersey's price level.
@@ -62,7 +62,7 @@ export default [
       return {
         name: "Regular gasoline, New Jersey average", label: "Gas, NJ pump", tile: "fuel", scope: "home", kind: "price",
         fmt: "usd2", bad: "high", chg: "pct", wk: 1,
-        num: now, refs: { 1: week, 4: month }, series: own.length >= 3 ? own : [],
+        num: now, refs: { 1: week, 4: month }, series: own.length >= 3 ? own : [], dates: own.length >= 3 ? ownDates : undefined,
         lo: mine ? mine.lo : round(us.lo + shift, 3), hi: mine ? mine.hi : round(Math.max(us.hi + shift, now), 3), med: mine ? mine.med : round(us.med + shift, 3),
         bigA: (mine ?? us).bigA, bigB: (mine ?? us).bigB,
         asOf: etDay(ctx.now),

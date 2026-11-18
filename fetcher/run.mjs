@@ -31,6 +31,7 @@ const ADAPTER_TIMEOUT = 60000;
 const HISTORY_KEEP = 1100; // about a week at 10-minute steps
 const HISTORY_SHOWN = 300; // about two days, sent to the page
 const LOG_KEEP = 60;
+const TRAIL_KEEP = 150; // a little over a day at 10-minute steps
 const DROP_AFTER = 7 * 86400e3; // a reading that hasn't refreshed in a week is removed
 
 function withTimeout(promise, ms, label) {
@@ -116,6 +117,22 @@ export async function runOnce({ get = httpGet, now = Date.now(), state = {}, eve
   state.prev = seen;
   state.log = [...entries.sort((a, b) => (a.id.startsWith("dial") ? -1 : 0) - (b.id.startsWith("dial") ? -1 : 0)), ...state.log].slice(0, LOG_KEEP);
 
+  // Each reading's score over the past day, one value per run, lined up with trailT.
+  state.trailT ??= [];
+  state.trails ??= {};
+  const runs = state.trailT.length;
+  state.trailT.push(Math.round(now / 60000));
+  for (const f of feeds) (state.trails[f.id] ??= new Array(runs).fill(null));
+  for (const [id, list] of Object.entries(state.trails)) {
+    const f = feeds.find((x) => x.id === id);
+    list.push(f && live(f, now) ? f._c.sev : null);
+    if (!f) delete state.trails[id];
+  }
+  if (state.trailT.length > TRAIL_KEEP) {
+    state.trailT = state.trailT.slice(-TRAIL_KEEP);
+    for (const id of Object.keys(state.trails)) state.trails[id] = state.trails[id].slice(-TRAIL_KEEP);
+  }
+
   state.history.push({ t: iso, national: scores.national, home: scores.home });
   state.history = state.history.slice(-HISTORY_KEEP);
 
@@ -126,6 +143,8 @@ export async function runOnce({ get = httpGet, now = Date.now(), state = {}, eve
     feeds: Object.values(state.feeds),
     history: state.history.slice(-HISTORY_SHOWN),
     log: state.log,
+    trailT: state.trailT,
+    trails: state.trails,
     errors,
   };
   const summary = { t: iso, event, ms: Date.now() - started, ran: due.length, adapters: ADAPTERS.length, readings: feeds.length, ...scores, failed: errors.map((e) => e.id) };

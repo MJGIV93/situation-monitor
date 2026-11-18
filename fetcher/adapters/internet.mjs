@@ -31,13 +31,13 @@ function statusDoc({ id, host, name, label, source, note = "" }) {
 
 // Georgia Tech's IODA probes networks from outside. The reading compares the
 // latest count of responding address blocks with the past day's median.
-function ioda({ id, asn, name, label, note }) {
+function ioda({ id, asn, entity = `asn/${asn}`, scope = "home", name, label, note }) {
   return {
     id,
     every: 10,
     async run(ctx) {
       const until = Math.floor(ctx.now / 1000), from = until - 86400;
-      const j = json(await fetchOk(ctx, `https://api.ioda.inetintel.cc.gatech.edu/v2/signals/raw/asn/${asn}?from=${from}&until=${until}`));
+      const j = json(await fetchOk(ctx, `https://api.ioda.inetintel.cc.gatech.edu/v2/signals/raw/${entity}?from=${from}&until=${until}`));
       const series = (j.data ?? []).flat();
       const ratio = (source) => {
         const v = (series.find((s) => s.datasource === source)?.values ?? []).filter((x) => typeof x === "number");
@@ -50,8 +50,8 @@ function ioda({ id, asn, name, label, note }) {
       need(known.length, "no usable signal");
       const worst = Math.min(...known);
       return {
-        name, label, tile: "net", scope: "home", kind: "level", note,
-        source: `https://ioda.inetintel.cc.gatech.edu/asn/${asn}`,
+        name, label, tile: "net", scope, kind: "level", note,
+        source: `https://ioda.inetintel.cc.gatech.edu/${entity}`,
         steps: ["Normal", "Dip", "Partial outage", "Major outage"], sevs: [0, 20, 50, 85],
         ladder: ["over 90% reachable", "75% to 90%", "40% to 75%", "under 40%"],
         step: worst >= 0.9 ? 0 : worst >= 0.75 ? 1 : worst >= 0.4 ? 2 : 3,
@@ -116,6 +116,10 @@ export default [
       };
     },
   },
+  ioda({
+    id: "net-us", entity: "country/US", scope: "national", name: "US internet connectivity (IODA)", label: "US internet",
+    note: "Georgia Tech's IODA project measures how much of the country's address space is reachable from outside. A nationwide carrier or backbone failure would show here.",
+  }),
   ioda({
     id: "isp-optimum", asn: 6128, name: "Optimum network (IODA)", label: "Optimum",
     note: "Georgia Tech's IODA project probes the network from outside. It covers Optimum as a whole, so one neighborhood losing service would not show.",

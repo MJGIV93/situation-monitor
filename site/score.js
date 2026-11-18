@@ -224,6 +224,11 @@ const EVENT_RULES = {
     const k = f.half && !e.nyc ? 0.5 : 1;
     return { pts: base * k, why: (e.type || "bulletin") + " " + base + (k < 1 ? ", halved because it doesn't name the New York area" : "") };
   },
+  cyberAlert(e, now) {
+    const base = e.level === "directive" ? 50 : e.level === "exploited" ? 30 : 15;
+    const k = fade(e.at, now, 72, 168);
+    return { pts: base * k, why: (e.level === "directive" ? "emergency directive" : e.level === "exploited" ? "active exploitation" : "patch alert") + " " + base + (k === 1 ? "" : k ? ", halved after 3 days" : ", over a week old") };
+  },
   femaHome() { return { pts: 40, why: "a federal declaration covering your county scores 40" }; },
   context() { return { pts: 0, why: "context only" }; },
 };
@@ -233,6 +238,7 @@ const EVENT_NOTES = {
   quakeHome: "Scored by magnitude and distance from Morristown. Within 60 miles: 10 at magnitude 2.5, 30 at 3.5, 55 at 4.5, 85 at 5.5.",
   quakeUS: "Only US quakes count: 25 at magnitude 6, 60 at 7, more if USGS rates the impact orange or red.",
   ntas: "A bulletin scores 20, an Elevated alert 60, an Imminent alert 90.",
+  cyberAlert: "A patch alert scores 15, an alert about active exploitation 30, an emergency directive 50. Each fades after 3 days and drops off after 7.",
   femaHome: "Scores 40 while a federal declaration from the past 30 days covers Morris County or Manhattan.",
   context: "Shown for context. It doesn't add to the score.",
 };
@@ -268,8 +274,9 @@ export function calc(f, now = Date.now()) {
     r.sev = Math.min(80, d * 10 + su * 35);
     r.lines.push("10 per line with delays, 35 per suspended line.");
   } else if (k === "count" && num(f.base)) {
-    r.sev = clamp(((num(f.num) || 0) / f.base - 1.25) * 40, 0, 80);
-    r.lines.push("Scored against its average of " + commas(f.base, 1) + ". Points start at 25% above average.");
+    const tol = num(f.tol) || 1.25;
+    r.sev = clamp(((num(f.num) || 0) / f.base - tol) * 40, 0, 80);
+    r.lines.push("Scored against its average of " + commas(f.base, 1) + ". Points start at " + (tol === 2 ? "double the average" : Math.round((tol - 1) * 100) + "% above average") + " and reach 40 one average higher.");
   } else {
     r.sev = num(f.sev) || 0;
     r.lines.push(r.sev ? "Scored by a fixed value set in the fetcher." : "Scores 0 while nothing is active.");

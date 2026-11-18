@@ -78,7 +78,7 @@ export function km(lat1, lon1, lat2, lon2) {
 // hist: values oldest to newest, the last one being the current value.
 // perWeek: points per week (5 trading days, 7 calendar days, or 1 for weekly data).
 // Returns the fields every price reading carries: range, median, and what a large move is.
-export function priceFields(hist, perWeek, chg) {
+export function priceFields(hist, perWeek, chg, dates) {
   const year = perWeek === 1 ? 52 : perWeek === 7 ? 365 : 252;
   const h = hist.slice(-(year + 1));
   const move = (n) => {
@@ -98,6 +98,7 @@ export function priceFields(hist, perWeek, chg) {
     hi: round(Math.max(...h), 4),
     med: round(median(h), 4),
     series: h.slice(-keep).map((x) => round(x, 4)),
+    dates: dates && dates.length === hist.length ? dates.slice(-keep) : undefined,
     wk: perWeek,
     chg,
     bigA: round(pctile(move(1), 0.95), d),
