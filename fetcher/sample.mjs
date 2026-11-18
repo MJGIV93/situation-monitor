@@ -16,11 +16,16 @@ const cboeHist = (s) => `https://cdn.cboe.com/api/global/delayed_quotes/charts/h
 const geo = { accept: "application/geo+json" };
 const gql = (query) => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }) });
 
+const census = (address, format = "json") => `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=${encodeURIComponent(address)}&benchmark=Public_AR_Current&format=${format}`;
 const LIST = [
-  ...Array.from({ length: 12 }, (_, i) => [`rave-channel${i + 1}`, `https://content.getrave.com/rss/smcmua/channel${i + 1}`]),
-  ["rave-root", "https://content.getrave.com/rss/smcmua"],
+  ["nws-morris-zones", "https://api.weather.gov/alerts/active?zone=NJZ008,NJC027", geo],
+  ["nws-morris-point", "https://api.weather.gov/alerts/active?point=40.797,-74.481", geo],
+  ["nws-nyc-zones", "https://api.weather.gov/alerts/active?zone=NYZ072,NYC061", geo],
+  ["nws-shapes", "https://api.weather.gov/alerts/active?event=Special%20Weather%20Statement,Flood%20Warning,Flood%20Advisory,Severe%20Thunderstorm%20Warning&limit=6", geo],
+  ["census-lake", census("208 Lake Road, Morris Township, NJ")],
+  ["census-lake-short", census("208 Lake Rd, Morristown, NJ")],
+  ["census-jsonp", census("208 Lake Road, Morris Township, NJ", "jsonp") + "&callback=cb"],
 ];
-
 const OUT = "samples";
 await mkdir(OUT, { recursive: true });
 const index = [];
@@ -35,5 +40,10 @@ async function save(name, url, opts) {
 }
 
 for (const [name, url, opts] of LIST) await save(name, url, opts);
+
+const state = await save("kubra-jcpl-state", kubra(...JCPL));
+const path = JSON.parse(state.text).data.interval_generation_data;
+await save("kubra-jcpl-townships", `https://kubra.io/${path}/public/thematic-17/thematic_areas.json`);
+await save("kubra-jcpl-report", `https://kubra.io/${path}/public/reports/10ecc9a7-094a-46e3-a733-cbebe39cf407_report.json`);
 
 await writeFile(`${OUT}/index.json`, JSON.stringify(index, null, 1));
