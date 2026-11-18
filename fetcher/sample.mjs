@@ -17,9 +17,21 @@ const geo = { accept: "application/geo+json" };
 const gql = (query) => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }) });
 
 const LIST = [
-  ["nixle-morristown", "https://nixle.us/city/nj/morristown/"],
-  ["nixle-morris-twp-pd", "https://nixle.us/morris-township-police-department/"],
-  ["nixle-city-morris", "https://nixle.us/city/nj/morris/"],
+  ["news2-bbc-1", "https://feeds.bbci.co.uk/news/rss.xml"],
+  ["news2-bbc-2", "https://feeds.bbci.co.uk/news/world/rss.xml"],
+  ["news2-npr-1", "https://feeds.npr.org/1001/rss.xml"],
+  ["news2-pbs-1", "https://www.pbs.org/newshour/feeds/rss/headlines"],
+  ["news2-cbs-1", "https://www.cbsnews.com/latest/rss/main"],
+  ["news2-nbc-1", "https://feeds.nbcnews.com/nbcnews/public/news"],
+  ["news2-abc-1", "https://abcnews.go.com/abcnews/topstories"],
+  ["news2-ny-times-1", "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"],
+  ["news2-ny-times-2", "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"],
+  ["news2-washington-post-1", "https://feeds.washingtonpost.com/rss/world"],
+  ["news2-fox-news-1", "https://moxie.foxnews.com/google-publisher/latest.xml"],
+  ["news2-guardian-1", "https://www.theguardian.com/world/rss"],
+  ["news2-guardian-2", "https://www.theguardian.com/us-news/rss"],
+  ["news2-al-jazeera-1", "https://www.aljazeera.com/xml/rss/all.xml"],
+  ["news2-france-24-1", "https://www.france24.com/en/rss"],
 ];
 
 const OUT = "samples";
