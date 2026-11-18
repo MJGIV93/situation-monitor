@@ -12,7 +12,7 @@ import { gzipSync } from "node:zlib";
 import { pathToFileURL } from "node:url";
 import { get as httpGet } from "./lib/http.mjs";
 import { etClock } from "./lib/util.mjs";
-import { calc, dial, rowText, band, BANDS, live } from "../site/score.js";
+import { calc, dial, rowText, band, BANDS, live, tileName } from "../site/score.js";
 
 import utilities from "./adapters/utilities.mjs";
 import travel from "./adapters/travel.mjs";
@@ -35,6 +35,9 @@ const HISTORY_SHOWN = 300; // about two days, sent to the page
 const LOG_KEEP = 60;
 const TRAIL_KEEP = 150; // a little over a day at 10-minute steps
 const DROP_AFTER = 7 * 86400e3; // a reading that hasn't refreshed in a week is removed
+
+// How a reading's move between bands is worded.
+const change = (from, to, sev) => (to > from ? (from === 0 ? "now active" : "worsened") : sev < 1 ? "cleared" : "eased");
 
 function withTimeout(promise, ms, label) {
   let timer;
@@ -94,9 +97,22 @@ export async function runOnce({ get = httpGet, now = Date.now(), state = {}, eve
   const readings = Object.values(state.feeds).filter((f) => f.kind !== "news");
   // Score every reading with the same rules the page uses.
   const feeds = readings.map((f) => ({ ...f, _c: calc(f, now) }));
-  const scores = { national: dial(feeds, "national", now).score, home: dial(feeds, "home", now).score };
+  const dials = { national: dial(feeds, "national", now), home: dial(feeds, "home", now) };
+  const scores = { national: dials.national.score, home: dials.home.score };
 
-  // Log: one line whenever a reading or a dial crosses into a different band.
+  // Entries written before the wording changed are reworded once, so the card reads the same throughout.
+  if (state.logV !== 2) {
+    for (const x of state.log) {
+      const m = x.text.match(/^(.*?): (.*)\. Signal ([\d.]+), was ([\d.]+)\.?$/);
+      const d = x.text.match(/^(USA|Home) moved to (\w+)(?: at \d+)?, from \w+(?: at \d+)?\.?$/);
+      if (m) x.text = `${m[1]} ${change(band(Number(m[4])), band(Number(m[3])), Number(m[3]))}: ${m[2]}`;
+      else if (d) x.text = `${d[1]} ${x.dir === "down" ? "eased" : "rose"} to ${d[2]}`;
+    }
+    state.logV = 2;
+  }
+
+  // What changed: one line whenever a reading or a dial crosses into a different band,
+  // worded as what happened. The numbers behind it are in each reading's detail.
   const prev = state.prev ?? {};
   const seen = {};
   const entries = [];
@@ -107,7 +123,7 @@ export async function runOnce({ get = httpGet, now = Date.now(), state = {}, eve
     const was = prev[f.id];
     if (!was || was.b === b) continue;
     const text = rowText(f, f._c, now).filter(Boolean).join(", ");
-    entries.push({ t: iso, id: f.id, dir: b > was.b ? "up" : "down", text: `${f.label}: ${text}. Signal ${f._c.sev}, was ${was.sev}.` });
+    entries.push({ t: iso, id: f.id, dir: b > was.b ? "up" : "down", text: `${f.label} ${change(was.b, b, f._c.sev)}: ${text}` });
   }
   for (const [scope, label] of [["national", "USA"], ["home", "Home"]]) {
     const s = scores[scope];
@@ -115,7 +131,12 @@ export async function runOnce({ get = httpGet, now = Date.now(), state = {}, eve
     const b = band(s);
     seen["dial:" + scope] = { b, sev: s };
     const was = prev["dial:" + scope];
-    if (was && was.b !== b) entries.push({ t: iso, id: "dial:" + scope, dir: b > was.b ? "up" : "down", text: `${label} moved to ${BANDS[b]}, from ${BANDS[was.b]}.` });
+    if (!was || was.b === b) continue;
+    // A rise names the domain doing the most, and the reading inside it that leads.
+    const part = dials[scope].parts[0];
+    const lead = part && feeds.filter((f) => f.scope === scope && f.tile === part.id && live(f, now)).sort((x, y) => y._c.sev - x._c.sev)[0];
+    const why = b > was.b && part ? `, led by ${tileName(part.id)}${lead && lead._c.sev > 0 ? ` (${lead.label})` : ""}` : "";
+    entries.push({ t: iso, id: "dial:" + scope, dir: b > was.b ? "up" : "down", text: `${label} ${b > was.b ? "rose" : "eased"} to ${BANDS[b]}${why}` });
   }
   if (firstRun) entries.push({ t: iso, id: "start", dir: "", text: `Monitoring started at ${etClock(now)} ET with ${feeds.length} readings.` });
   state.prev = seen;

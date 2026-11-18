@@ -130,6 +130,10 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: 26px; line-heig
 .signals .ctitle, .latest .ctitle { margin-bottom: 6px; }
 .latest li { padding: 7px 0; border-top: 1px solid var(--line); font-size: 14px; }
 .latest li time { display: block; font-size: 11.5px; color: var(--dim); }
+.latest li.new time::after { content: " · new"; color: var(--fg); font-weight: 600; }
+.lhead { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.lhead .ctitle { margin: 0; }
+.lhead .small { font-size: 11.5px; }
 .latest details summary { cursor: pointer; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; color: var(--dim); }
 
 /* route strip and timeline */
@@ -317,7 +321,8 @@ body.wall .tail, body.wall .how { display: none; }
   #dialNat { grid-area: d1; }
   #dialHome { grid-area: d2; }
   .nowcol { grid-area: now; grid-column: auto; gap: 8px; min-height: 0; }
-  .nowcol .latest { flex: 1 1 0; min-height: 150px; overflow-y: auto; }
+  .nowcol .latest { flex: 1 1 0; min-height: 252px; overflow: hidden; }
+  .nowcol .latest:has(details[open]) { overflow-y: auto; }
   #newsHost { grid-area: news; grid-column: auto; position: relative; min-height: 520px; }
   #newsHost .news { position: absolute; inset: 0; overflow-y: auto; }
   .hl .hlo { display: block; }
@@ -416,7 +421,7 @@ body.compact .dial .sparkbox { grid-area: spark; }
       <p class="small" id="signalNone" hidden>No situations.</p>
     </section>
     <section class="card latest" id="latest">
-      <h3 class="ctitle">Log</h3>
+      <div class="lhead"><h3 class="ctitle">What changed</h3><span class="small" id="latestNew"></span></div>
       <ul id="latestTop"></ul>
       <details id="latestMore" hidden><summary></summary><ul id="latestRest"></ul></details>
     </section>
@@ -485,6 +490,27 @@ const mqTall = mq("(min-width: 720px) and (orientation: portrait) and (min-heigh
 function layoutMode() { return mqTall.matches ? "bottom" : mqRight.matches ? "right" : mqPush.matches ? "push" : wide && wide.matches ? "side" : "sheet"; }
 const docked = () => { const m = layoutMode(); return m === "right" || m === "bottom"; };
 let lastLog = null;
+// When the page was last looked at, kept in this browser so new changes can be marked.
+const SEEN_KEY = "sm-seen";
+function readSeen() { try { return Number(localStorage.getItem(SEEN_KEY)) || 0; } catch (e) { return 0; } }
+function saveSeen() { try { localStorage.setItem(SEEN_KEY, String(Date.now())); } catch (e) { /* private window */ } }
+let seenAt = readSeen();
+// Show as many changes as the card has room for (five on a phone) and fold the rest under "Earlier".
+function fitChanges() {
+  const card = $("latest"), top = $("latestTop"), rest = $("latestRest"), more = $("latestMore");
+  if (card.hidden) return;
+  while (rest.firstChild) top.appendChild(rest.firstChild);
+  const items = Array.prototype.slice.call(top.children);
+  let cut = 5;
+  if (wide && wide.matches) {
+    const limit = card.getBoundingClientRect().bottom - 40;
+    cut = items.findIndex((li, i) => i >= 3 && li.getBoundingClientRect().bottom > limit);
+    if (cut < 0) cut = items.length;
+  }
+  items.slice(cut).forEach((li) => rest.appendChild(li));
+  more.hidden = cut >= items.length;
+  more.querySelector("summary").textContent = "Earlier (" + (items.length - cut) + ")";
+}
 
 const $ = (id) => document.getElementById(id);
 function el(tag, cls, text) {
@@ -879,7 +905,7 @@ function renderTimeline(host, scope) {
     axis.appendChild(lab);
   }
   host.appendChild(axis);
-  host.appendChild(el("span", "small", hours > 20 ? "Past 24 hours. Ticks mark log entries." : "Since " + clockText(new Date(start)) + ". Ticks mark log entries."));
+  host.appendChild(el("span", "small", hours > 20 ? "Past 24 hours. Ticks mark changes." : "Since " + clockText(new Date(start)) + ". Ticks mark changes."));
 }
 
 /* ---- detail panel ---- */
@@ -995,7 +1021,7 @@ function closePanel() {
 function renderSignals() {
   const host = $("signalRows");
   host.textContent = "";
-  const top = state.feeds.filter((f) => live(f)).filter((f) => sev(f) >= 10).sort((a, b) => sev(b) - sev(a)).slice(0, 6);
+  const top = state.feeds.filter((f) => live(f)).filter((f) => sev(f) >= 10).sort((a, b) => sev(b) - sev(a)).slice(0, wide && wide.matches ? 10 : 6);
   top.forEach((f) => host.appendChild(row(f, f.scope === "home" ? "HOME" : "USA", "sig")));
   $("signalNone").hidden = top.length > 0 || !state.loaded;
 }
@@ -1095,23 +1121,26 @@ function renderStatus() {
     setIcon(band(scores.national), scores.home == null ? 0 : band(scores.home));
   }
 
-  const key = state.log.map((x) => x.t + x.text).join("|") + (wide && wide.matches ? "|w" : "");
+  // What changed: newest first, with anything since the last visit marked.
+  const fresh0 = seenAt ? state.log.filter((x) => Date.parse(x.t) > seenAt).length : 0;
+  const key = state.log.map((x) => x.t + x.text).join("|") + "|" + layoutMode() + "|" + seenAt;
   if (key !== lastLog) {
     lastLog = key;
     const top = $("latestTop"), rest = $("latestRest"), more = $("latestMore");
     top.textContent = "";
     rest.textContent = "";
-    const show = wide && wide.matches ? 99 : 4, today = dayText(new Date());
-    state.log.forEach((x, i) => {
-      const li = el("li"), d = new Date(Date.parse(x.t)), day = dayText(d);
+    const today = dayText(new Date());
+    state.log.forEach((x) => {
+      const li = el("li", seenAt && Date.parse(x.t) > seenAt ? "new" : ""), d = new Date(Date.parse(x.t)), day = dayText(d);
       li.appendChild(el("time", null, (day && day !== today ? day + ", " : "") + clockText(d)));
       li.appendChild(document.createTextNode(String(x.text || "")));
-      (i < show ? top : rest).appendChild(li);
+      top.appendChild(li);
     });
-    more.hidden = state.log.length <= show;
-    more.querySelector("summary").textContent = state.log.length - show + " more";
+    more.hidden = true;
+    $("latestNew").textContent = fresh0 ? fresh0 + " since " + clockText(new Date(seenAt)) : "";
     $("latest").hidden = !state.log.length;
   }
+  fitChanges();
 
   const errs = $("errs");
   errs.hidden = !nErr;
@@ -1260,7 +1289,9 @@ load();
 setInterval(load, REFRESH_MS);
 // Scores that depend on the clock, like an alert about to start, are recomputed between loads.
 setInterval(() => { state.feeds.forEach((f) => { f._c = calc(f); }); render(); }, 5 * 60 * 1000);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+document.addEventListener("visibilitychange", () => { if (document.hidden) saveSeen(); else { seenAt = readSeen(); load(); } });
+window.addEventListener("pagehide", saveSeen);
+window.addEventListener("resize", () => { if (state.loaded) fitChanges(); });
 if (wide && wide.addEventListener) wide.addEventListener("change", render);
 $("panelClose").addEventListener("click", closePanel);
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePanel(); });

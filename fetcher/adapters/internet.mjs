@@ -6,7 +6,9 @@ const INDICATOR = { none: "ok", minor: "minor", major: "major", critical: "criti
 export async function statuspage(ctx, host) {
   const j = json(await fetchOk(ctx, `https://${host}/api/v2/summary.json`));
   need(j.status?.indicator, "no status indicator");
-  const incidents = (j.incidents ?? []).filter((i) => !/resolved|postmortem/i.test(i.status));
+  const groupName = Object.fromEntries((j.components ?? []).filter((c) => c.group).map((c) => [c.id, c.name]));
+  const incidents = (j.incidents ?? []).filter((i) => !/resolved|postmortem/i.test(i.status))
+    .map((i) => ({ ...i, parts: (i.components ?? []).filter(Boolean).map((c) => ({ name: String(c.name ?? ""), group: groupName[c.group_id] ?? "" })) }));
   const flagged = (j.components ?? []).filter((c) => c.status && c.status !== "operational" && c.status !== "under_maintenance" && !c.group);
   return { state: INDICATOR[j.status.indicator] ?? "minor", incidents, flagged, total: (j.components ?? []).length };
 }
@@ -65,7 +67,35 @@ function ioda({ id, asn, entity = `asn/${asn}`, scope = "home", name, label, not
 
 export default [
   statusDoc({ id: "status-claude", host: "status.claude.com", name: "Claude status", label: "Claude", source: "https://status.claude.com/", w: 0.5, wWhy: "it's one company's service, not shared infrastructure" }),
-  statusDoc({ id: "status-cloudflare", host: "www.cloudflarestatus.com", name: "Cloudflare status", label: "Cloudflare", source: "https://www.cloudflarestatus.com/" }),
+  {
+    // Cloudflare posts an incident for every product and every one of its 300-odd data centers.
+    // Only the ones that could break ordinary websites for someone in the US are counted.
+    id: "status-cloudflare",
+    every: 10,
+    async run(ctx) {
+      const s = await statuspage(ctx, "www.cloudflarestatus.com");
+      const CORE = /^(CDN\/Cache|Authoritative DNS|Recursive DNS|DNS Root Servers|Network|Infrastructure|Firewall|Challenge Platform|Turnstile|WebSockets|Load Balancing)/i;
+      const REGION = /^(North America|Europe|Latin America|Asia|Africa|Middle East|Oceania)/i;
+      const counts = (i) => {
+        if (i.impact === "major" || i.impact === "critical") return true;
+        const places = i.parts.filter((p) => REGION.test(p.group)), services = i.parts.filter((p) => !REGION.test(p.group));
+        // A problem at data centers counts when one of them is in North America.
+        if (places.length && !services.length) return places.some((p) => /^North America/i.test(p.group));
+        return services.some((p) => CORE.test(p.name));
+      };
+      const kept = s.incidents.filter(counts), left = s.incidents.filter((i) => !counts(i));
+      const rank = ["ok", "minor", "major", "critical"];
+      const state = kept.reduce((a, i) => (rank.indexOf(i.impact) > rank.indexOf(a) ? i.impact : a), kept.length ? "minor" : "ok");
+      return {
+        name: "Cloudflare status", label: "Cloudflare", tile: "net", scope: "national", kind: "status", source: "https://www.cloudflarestatus.com/",
+        state,
+        short: kept.length ? `${kept.length} incident${kept.length > 1 ? "s" : ""}` : "no incidents",
+        note: "Counts major incidents, problems with Cloudflare's core network, DNS and security services, and data center trouble in North America." + (left.length ? ` Not counted: ${left.slice(0, 3).map((i) => clip(i.name, 70)).join("; ")}${left.length > 3 ? `, and ${left.length - 3} more` : ""}.` : ""),
+        items: kept.slice(0, 4).map((i) => clip(i.name, 120)),
+        track: { state, incidents: kept.length, other: left.length },
+      };
+    },
+  },
   {
     id: "status-apple",
     every: 10,

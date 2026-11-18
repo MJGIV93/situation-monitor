@@ -103,22 +103,30 @@ export default [
     id: "nixle-morristown",
     every: 10,
     async run(ctx) {
-      const html = await fetchOk(ctx, "https://nixle.us/city/nj/morristown/");
-      need(/Morristown/i.test(html) && /id="wire"/.test(html), "not the Nixle page");
-      const posts = html.split(/<li id="pub_/).slice(1).map((s) => {
-        const tier = (s.match(/class="priority (\w+)"/)?.[1] ?? "advisory").toLowerCase();
-        const entered = strip(s.match(/<p class="time">([\s\S]*?)<\/p>/)?.[1] ?? "");
-        const text = strip((s.match(/<p class="time">[\s\S]*?<\/p>\s*<p>([\s\S]*?)<\/p>/)?.[1] ?? "").replace(/<a[\s\S]*?<\/a>/g, ""));
-        const ago = relativeMs(entered);
-        return { event: clip(text, 150), tier, at: new Date(ctx.now - ago).toISOString(), text: agoText(ago), urgent: URGENT.test(text) || undefined, ago };
-      }).filter((p) => p.event);
+      // One page per municipality. Morris Township is listed by Nixle as "Morris".
+      const pages = [["Morristown", "https://nixle.us/city/nj/morristown/"], ["Morris Township", "https://nixle.us/city/nj/morris/"]];
+      const posts = [], missing = [];
+      for (const [place, url] of pages) {
+        const res = await ctx.get(url);
+        if (!res.ok || !/id="wire"/.test(res.text)) { missing.push(place); continue; }
+        for (const s of res.text.split(/<li id="pub_/).slice(1)) {
+          const tier = (s.match(/class="priority (\w+)"/)?.[1] ?? "advisory").toLowerCase();
+          const agency = strip(s.match(/<h2 class="certified">([\s\S]*?)<\/h2>/)?.[1] ?? "").replace(/\s+(NJ\s+)?Police Department$/i, "") || place;
+          const entered = strip(s.match(/<p class="time">([\s\S]*?)<\/p>/)?.[1] ?? "");
+          const text = strip((s.match(/<p class="time">[\s\S]*?<\/p>\s*<p>([\s\S]*?)<\/p>/)?.[1] ?? "").replace(/<a[\s\S]*?<\/a>/g, ""));
+          const ago = relativeMs(entered);
+          if (text) posts.push({ event: clip(`${agency}: ${text}`, 170), tier, at: new Date(ctx.now - ago).toISOString(), text: agoText(ago), urgent: URGENT.test(text) || undefined, ago });
+        }
+      }
+      need(missing.length < pages.length, "neither Nixle page answered");
+      posts.sort((x, y) => x.ago - y.ago);
       const last = posts[0];
       return {
-        name: "Morristown local alerts (Nixle)", label: "Town alerts", tile: "gov", scope: "home", kind: "events", rule: "town",
+        name: "Morristown and Morris Township alerts (Nixle)", label: "Town alerts", tile: "gov", scope: "home", kind: "events", rule: "town",
         events: posts.slice(0, 6).map(({ ago, ...p }) => p),
         short: last ? "last " + agoText(last.ago) : "none posted",
-        note: "The public page behind the town's text alerts. Morristown Police also relay SMCMUA water notices here.",
-        source: "https://nixle.us/city/nj/morristown/",
+        note: "The public pages behind the text alerts from Morristown Police and Morris Township Police. Both also relay SMCMUA water notices." + (missing.length ? ` The ${missing[0]} page didn't answer on the last check.` : ""),
+        source: "https://nixle.us/city/nj/morris/",
       };
     },
   },
