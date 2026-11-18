@@ -17,27 +17,11 @@ const geo = { accept: "application/geo+json" };
 const gql = (query) => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }) });
 
 const LIST = [
-  ["news-bbc-world", "https://feeds.bbci.co.uk/news/world/rss.xml"],
-  ["news-bbc-top", "https://feeds.bbci.co.uk/news/rss.xml"],
-  ["news-npr", "https://feeds.npr.org/1001/rss.xml"],
-  ["news-guardian-world", "https://www.theguardian.com/world/rss"],
-  ["news-guardian-us", "https://www.theguardian.com/us-news/rss"],
-  ["news-aljazeera", "https://www.aljazeera.com/xml/rss/all.xml"],
-  ["news-nyt-home", "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"],
-  ["news-nyt-world", "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"],
-  ["news-cbs", "https://www.cbsnews.com/latest/rss/main"],
-  ["news-abc", "https://abcnews.go.com/abcnews/topstories"],
-  ["news-fox", "https://moxie.foxnews.com/google-publisher/latest.xml"],
-  ["news-wsj-world", "https://feeds.a.dj.com/rss/RSSWorldNews.xml"],
-  ["news-google-top", "https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en"],
-  ["news-france24", "https://www.france24.com/en/rss"],
-  ["news-dw", "https://rss.dw.com/rdf/rss-en-all"],
-  ["news-pbs", "https://www.pbs.org/newshour/feeds/rss/headlines"],
-  ["news-wapo-world", "https://feeds.washingtonpost.com/rss/world"],
-  ["news-nbc", "https://feeds.nbcnews.com/nbcnews/public/news"],
-  ["news-sky-world", "https://feeds.skynews.com/feeds/rss/world.xml"],
-  ["news-cnn", "http://rss.cnn.com/rss/cnn_topstories.rss"],
+  ["nixle-morristown", "https://nixle.us/city/nj/morristown/"],
+  ["nixle-morris-twp-pd", "https://nixle.us/morris-township-police-department/"],
+  ["nixle-city-morris", "https://nixle.us/city/nj/morris/"],
 ];
+
 const OUT = "samples";
 await mkdir(OUT, { recursive: true });
 const index = [];
