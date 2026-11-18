@@ -17,21 +17,11 @@ const geo = { accept: "application/geo+json" };
 const gql = (query) => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }) });
 
 const LIST = [
-  ["news2-bbc-1", "https://feeds.bbci.co.uk/news/rss.xml"],
-  ["news2-bbc-2", "https://feeds.bbci.co.uk/news/world/rss.xml"],
-  ["news2-npr-1", "https://feeds.npr.org/1001/rss.xml"],
-  ["news2-pbs-1", "https://www.pbs.org/newshour/feeds/rss/headlines"],
-  ["news2-cbs-1", "https://www.cbsnews.com/latest/rss/main"],
-  ["news2-nbc-1", "https://feeds.nbcnews.com/nbcnews/public/news"],
-  ["news2-abc-1", "https://abcnews.go.com/abcnews/topstories"],
-  ["news2-ny-times-1", "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"],
-  ["news2-ny-times-2", "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"],
-  ["news2-washington-post-1", "https://feeds.washingtonpost.com/rss/world"],
-  ["news2-fox-news-1", "https://moxie.foxnews.com/google-publisher/latest.xml"],
-  ["news2-guardian-1", "https://www.theguardian.com/world/rss"],
-  ["news2-guardian-2", "https://www.theguardian.com/us-news/rss"],
-  ["news2-al-jazeera-1", "https://www.aljazeera.com/xml/rss/all.xml"],
-  ["news2-france-24-1", "https://www.france24.com/en/rss"],
+  ["wx-points", "https://api.weather.gov/points/40.797,-74.481", geo],
+  ["wx-obs-kmmu", "https://api.weather.gov/stations/KMMU/observations/latest", geo],
+  ["wx-usgs-day", "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson"],
+  ["wx-whippany", "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=01381500&parameterCd=00065,00060&period=P2D"],
+  ["wx-aqi", "https://air-quality-api.open-meteo.com/v1/air-quality?latitude=40.797&longitude=-74.481&current=us_aqi,pm2_5&timezone=America%2FNew_York"],
 ];
 
 const OUT = "samples";
@@ -49,5 +39,13 @@ async function save(name, url, opts) {
 
 for (const [name, url, opts] of LIST) await save(name, url, opts);
 
+
+// The point lookup names the forecast URLs for that spot.
+try {
+  const pts = JSON.parse((await save("wx-points-again", "https://api.weather.gov/points/40.797,-74.481", geo)).text).properties;
+  await save("wx-hourly", pts.forecastHourly, geo);
+  await save("wx-daily", pts.forecast, geo);
+  await save("wx-stations", pts.observationStations, geo);
+} catch (e) { console.log("weather follow-up failed", e.message); }
 
 await writeFile(`${OUT}/index.json`, JSON.stringify(index, null, 1));
