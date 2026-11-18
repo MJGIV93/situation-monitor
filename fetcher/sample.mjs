@@ -16,21 +16,16 @@ const cboeHist = (s) => `https://cdn.cboe.com/api/global/delayed_quotes/charts/h
 const geo = { accept: "application/geo+json" };
 const gql = (query) => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }) });
 
-const iso = (n) => new Date(Date.now() - n * 86400e3).toISOString().slice(0, 19) + ".000";
 const LIST = [
-  ["sans-infocon", "https://isc.sans.edu/api/infocon?json"],
-  ["ransomware-recent", "https://api.ransomware.live/v2/recentvictims"],
-  ["ransomware-us", "https://api.ransomware.live/v2/countryvictims/US"],
-  ["cisa-all", "https://www.cisa.gov/cybersecurity-advisories/all.xml"],
-  ["cisa-ics", "https://www.cisa.gov/cybersecurity-advisories/ics-advisories.xml"],
-  ["cisa-alerts", "https://www.cisa.gov/cybersecurity-advisories/alerts.xml"],
-  ["cisa-directives", "https://www.cisa.gov/news-events/directives"],
-  ["nvd-critical", `https://services.nvd.nist.gov/rest/json/cves/2.0?cvssV3Severity=CRITICAL&pubStartDate=${iso(7)}&pubEndDate=${iso(0)}&resultsPerPage=5`],
-  ["nvd-critical-90", `https://services.nvd.nist.gov/rest/json/cves/2.0?cvssV3Severity=CRITICAL&pubStartDate=${iso(97)}&pubEndDate=${iso(7)}&resultsPerPage=1`],
-  ["ioda-us", `https://api.ioda.inetintel.cc.gatech.edu/v2/signals/raw/country/US?from=${now - 86400}&until=${now}`],
-  ["ioda-us-alerts", `https://api.ioda.inetintel.cc.gatech.edu/v2/outages/alerts?entityType=country&entityCode=US&from=${now - 7 * 86400}&until=${now}`],
-  ["njccic", "https://www.cyber.nj.gov/"],
-  ["njccic-alerts", "https://www.cyber.nj.gov/threat-landscape/alerts-advisories"],
+  ["mil-adsbfi", "https://opendata.adsb.fi/api/v2/mil"],
+  ["mil-adsblol", "https://api.adsb.lol/v2/mil"],
+  ["mil-airplaneslive", "https://api.airplanes.live/v2/mil"],
+  ["pizzint-home", "https://www.pizzint.watch/"],
+  ["pizzint-api", "https://www.pizzint.watch/api/dashboard-data"],
+  ["faa-status", "https://nasstatus.faa.gov/api/airport-status-information"],
+  ["faa-asws-ewr", "https://soa.smext.faa.gov/asws/api/airport/status/EWR"],
+  ["faa-events", "https://nasstatus.faa.gov/api/airport-events"],
+  ["faa-ops-plan", "https://nasstatus.faa.gov/api/operations-plan"],
 ];
 
 const OUT = "samples";
