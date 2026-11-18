@@ -109,7 +109,7 @@ export default [
       return [
         {
           id: "tfr", name: "FAA flight restrictions", label: "Flight restrictions", tile: "mil", scope: "national", kind: "count",
-          num: vip.length + security.length, sev: 0, short: `${vip.length} VIP, ${security.length} security`,
+          num: vip.length + security.length, sev: 0, short: `${vip.length} VIP visits`,
           items: vip.slice(0, 5).map((t) => `VIP movement: ${place(t)}${isFinite(when(t)) ? ", " + etDay(when(t)) : ""}`),
           note: `${list.length} temporary flight restrictions are active or scheduled. VIP ones follow the president and vice president, and security ones cover military sites and operations. Shown for context and not scored.`,
           source, track: { all: list.length, vip: vip.length, security: security.length },
@@ -188,10 +188,10 @@ export default [
       const open = j.data.filter((p) => p.current_popularity != null);
       return {
         name: "Pentagon pizza index (PizzINT)", label: "Pizza index", tile: "mil", scope: "national", kind: "level",
-        steps: ["DOUGHCON 5", "DOUGHCON 4", "DOUGHCON 3", "DOUGHCON 2", "DOUGHCON 1"], sevs: [0, 5, 10, 15, 20],
-        ladder: ["quiet", "above usual", "busy", "several shops spiking", "everything spiking"],
+        steps: ["Quiet", "Above usual", "Busy", "Spiking", "All spiking"], sevs: [0, 5, 10, 15, 20],
+        ladder: ["DOUGHCON 5", "DOUGHCON 4", "DOUGHCON 3", "DOUGHCON 2", "DOUGHCON 1"],
         step: 5 - level,
-        short: j.active_spikes ? `${j.active_spikes} spiking` : open.length ? `${open.length} of ${j.data.length} open` : "shops closed",
+        short: `DOUGHCON ${level}` + (open.length ? "" : ", closed"),
         detail: open.length ? "" : "None of the tracked shops is reporting live busyness right now, which is normal when they're closed.",
         items: open.map((p) => `${p.name}: ${p.percentage_of_usual != null ? Math.round(p.percentage_of_usual) + "% of usual" : "busyness " + p.current_popularity}${p.is_spike ? ", spiking" : ""}`),
         note: "How busy the pizza shops nearest the Pentagon are compared with their usual, as tracked by the hobby site PizzINT from Google's live busyness figures. The idea is that late-night orders rise when staff are kept in. It's a fun signal, so it can add at most 20 to this domain.",

@@ -6,6 +6,19 @@
 <meta name="robots" content="noindex">
 <meta name="color-scheme" content="light dark">
 <title>Situation Monitor</title>
+<meta name="description" content="A live board of outages and disruptions, scored for the USA and for Morristown, NJ and the commute into Manhattan.">
+<meta name="theme-color" content="#0d1116">
+<link rel="icon" id="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Situation Monitor">
+<meta property="og:description" content="A live board of outages and disruptions: power, transit, internet, markets, fuel, hazards, military and cyber. Updated every 10 minutes.">
+<meta property="og:url" content="https://mjgiv93.github.io/situation-monitor/">
+<meta property="og:image" content="https://mjgiv93.github.io/situation-monitor/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&display=swap">
@@ -26,6 +39,7 @@
   --b3: #c9302c;
   --b4: #8e1140;
   --stale: #8d97a1;
+  --mid: #36414c;
   --f-display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
   --f-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
@@ -33,13 +47,13 @@
   :root:not([data-theme="light"]) {
     color-scheme: dark;
     --bg: #0d1116; --surface: #141a21; --sunk: #0f141a; --line: #26303a; --fg: #e4e9ee; --dim: #8a96a3;
-    --b0: #46c08f; --b1: #dccb4a; --b2: #f09a3e; --b3: #f25c54; --b4: #ff6aa8; --stale: #5f6b78;
+    --b0: #46c08f; --b1: #dccb4a; --b2: #f09a3e; --b3: #f25c54; --b4: #ff6aa8; --stale: #5f6b78; --mid: #aeb8c2;
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg: #0d1116; --surface: #141a21; --sunk: #0f141a; --line: #26303a; --fg: #e4e9ee; --dim: #8a96a3;
-  --b0: #46c08f; --b1: #dccb4a; --b2: #f09a3e; --b3: #f25c54; --b4: #ff6aa8; --stale: #5f6b78;
+  --b0: #46c08f; --b1: #dccb4a; --b2: #f09a3e; --b3: #f25c54; --b4: #ff6aa8; --stale: #5f6b78; --mid: #aeb8c2;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -58,16 +72,24 @@ body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--f-
 h1, h2, h3, p, ul { margin: 0; }
 ul { padding: 0; list-style: none; }
 .small { font-size: 13px; color: var(--dim); }
-.card { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+.card { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 2px; }
 .ctitle { font-family: var(--f-display); font-weight: 600; font-size: 19px; line-height: 1.1; }
 
 /* header */
-.top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 16px; }
-h1 { font-family: var(--f-display); font-weight: 600; font-size: 30px; line-height: 1.05; letter-spacing: 0.01em; }
+.bar { background: var(--bg); border-bottom: 1px solid var(--line); }
+.barin { max-width: 1760px; margin: 0 auto; padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
+h1 { font-family: var(--f-display); font-weight: 600; font-size: 26px; line-height: 1.05; letter-spacing: 0.01em; }
+.chips { display: flex; gap: 8px; }
+.chip { display: inline-flex; align-items: baseline; gap: 7px; padding: 4px 9px; border: 1px solid var(--line); border-radius: 2px; background: var(--surface); }
+.chip i { font-style: normal; font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--dim); }
+.chip b { font-family: var(--f-display); font-weight: 600; font-size: 21px; line-height: 1; color: var(--c, var(--fg)); }
+.chip em { font-style: normal; font-size: 12px; color: var(--c, var(--dim)); }
+.clocks { display: flex; gap: 14px; margin-left: auto; font-size: 14px; color: var(--dim); white-space: nowrap; }
+.clocks b { font-weight: 500; color: var(--fg); }
 .brand { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .loc { font-size: 13px; color: var(--dim); letter-spacing: 0.02em; }
-.clock { font-size: 15px; color: var(--dim); }
-.status { flex-basis: 100%; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--dim); }
+.status { flex-basis: 100%; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--dim); min-width: 0; }
+.status span { min-width: 0; }
 .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--stale); }
 .dot.on { background: var(--b0); }
 .banner { border: 1px solid var(--line); background: var(--surface); padding: 10px 12px; font-size: 14px; }
@@ -102,7 +124,7 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: 30px; line-heig
 
 /* domains */
 .domlist { display: flex; flex-direction: column; gap: 12px; }
-.dom { padding: 12px 14px 6px; }
+.dom { padding: 10px 12px 4px; }
 .domhead { display: flex; align-items: center; gap: 10px; }
 .mark { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--c, transparent); border: 2px solid var(--c, var(--stale)); }
 .grp { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 10px; padding-bottom: 2px; border-bottom: 1px solid var(--line); }
@@ -111,7 +133,8 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: 30px; line-heig
 
 /* instrument rows */
 .rd + .rd { border-top: 1px solid var(--line); }
-.row { appearance: none; -webkit-appearance: none; background: none; border: 0; margin: 0; font: inherit; color: inherit; width: 100%; text-align: left; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) 84px 92px; column-gap: 10px; align-items: center; padding: 6px 0; min-height: 44px; }
+.row { appearance: none; -webkit-appearance: none; background: none; border: 0; margin: 0; font: inherit; color: inherit; width: 100%; text-align: left; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) 84px 104px; column-gap: 10px; align-items: center; padding: 5px 0; min-height: 40px; }
+@media (pointer: coarse) { .row { min-height: 44px; } }
 .row:focus-visible, .pclose:focus-visible, a:focus-visible, .latest summary:focus-visible, .how summary:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 .rk { font-size: 14px; color: var(--dim); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rk i { font-style: normal; font-size: 10px; font-weight: 600; letter-spacing: 0.06em; margin-right: 6px; padding: 1px 4px; border: 1px solid var(--line); border-radius: 3px; }
@@ -119,6 +142,15 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: 30px; line-heig
 .rv b { display: block; font-weight: 600; font-size: 16px; line-height: 1.15; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rv span { display: block; font-size: 11.5px; line-height: 1.2; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rd[data-band] .rv span.hot { color: var(--c); }
+.rd.q .rv b { color: var(--mid); font-weight: 500; }
+.rd.q .steps i.on, .rd.q .pips i, .rd.q .range i { background: var(--stale); }
+.rd.q .lamp { height: 2px; background: var(--stale); }
+.rd.q .bullets i, .rd.q .ports i { border-color: var(--stale); color: var(--dim); }
+.grp[data-band="0"] b { color: var(--stale); }
+.domhead[data-band="0"] .mark { background: transparent; border-color: var(--stale); }
+.rd.flash > .row { animation: flash 2.6s ease-out; }
+@keyframes flash { from { background: color-mix(in srgb, var(--fg) 16%, transparent); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .rd.flash > .row { animation: none; } }
 .rd.old .row { opacity: 0.55; }
 .rd.off .rv b { color: var(--stale); font-weight: 500; }
 .rd.sel > .row { background: var(--sunk); width: calc(100% + 16px); margin: 0 -8px; padding-left: 8px; padding-right: 8px; border-radius: 4px; }
@@ -148,7 +180,7 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: 30px; line-heig
 .none { height: 1px; background: var(--line); }
 
 /* row detail */
-.det { margin: 0 0 10px; padding: 12px; background: var(--sunk); border: 1px solid var(--line); border-radius: 4px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+.det { margin: 0 0 10px; padding: 12px; background: var(--sunk); border: 1px solid var(--line); border-radius: 2px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
 .det .chart { display: block; width: 100%; height: 84px; color: var(--c, var(--fg)); }
 .axis { position: relative; height: 15px; margin-top: -6px; font-size: 11px; color: var(--dim); }
 .axis span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
@@ -217,19 +249,21 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: 30px; line-heig
 @media (prefers-reduced-motion: reduce) { .gauge .needle { transition: none; } }
 
 @media (min-width: 720px) {
-  h1 { font-size: 38px; }
-  .wrap { padding-block: 20px 36px; }
+  h1 { font-size: 30px; }
+  .bar { position: sticky; top: 0; z-index: 10; }
+  .wrap { padding-block: 14px 36px; }
   .dial { padding: 16px; }
   .gauge .read { font-size: 64px; }
   .board > .signals, .board > .latest { grid-column: auto; }
-  .domlist { display: block; columns: 4 330px; column-gap: 12px; }
-  .dom { break-inside: avoid; margin: 0 0 12px; }
+  .domlist { display: block; columns: 4 330px; column-gap: 8px; }
+  .dom { break-inside: avoid; margin: 0 0 8px; }
+  .board { gap: 8px; }
+  .wrap { gap: 8px; }
   .tail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; align-items: start; }
 }
-@media (min-width: 1000px) {
-  .top { align-items: center; }
-  .status { flex-basis: auto; order: 2; }
-  .clock { order: 3; }
+@media (min-width: 1100px) {
+  .status { flex-basis: auto; flex: 1 1 0; }
+  .clocks { margin-left: 0; }
 }
 @media (min-width: 1280px) {
   .board { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -237,15 +271,21 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: 30px; line-heig
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header class="top">
+<header class="bar">
+  <div class="barin">
     <div class="brand">
       <h1>Situation Monitor</h1>
       <span class="loc">Morristown, NJ <span aria-hidden="true">·</span> 40.80° N, 74.48° W</span>
     </div>
-    <span class="clock" id="clock"></span>
-    <div class="status"><span class="dot" id="dot"></span><span id="statusText">Connecting</span></div>
-  </header>
+    <div class="chips">
+      <span class="chip" id="chipNat"><i>USA</i><b>–</b><em></em></span>
+      <span class="chip" id="chipHome"><i>Home</i><b>–</b><em></em></span>
+    </div>
+    <div class="status"><span class="dot" id="dot"></span><span><span id="statusText">Connecting</span><span id="nextText"></span></span></div>
+    <div class="clocks"><span><b id="clock"></b></span><span><b id="zulu"></b></span></div>
+  </div>
+</header>
+<div class="wrap">
 
   <div class="banner" id="banner" hidden></div>
 
@@ -315,6 +355,8 @@ const CUTS = [0, 0.1, 0.25, 0.5, 0.75, 1];
 const NS = "http://www.w3.org/2000/svg";
 const wide = window.matchMedia ? window.matchMedia("(min-width: 720px)") : null;
 const state = { feeds: [], scannedAt: null, history: [], log: [], errors: [], trailT: [], trails: {}, loaded: false, problem: "" };
+const flashUntil = {}; // reading id -> time until which its row is highlighted after a change
+const lastText = {};
 let sel = null; // id of the reading shown in the detail panel
 let selSide = "right";
 let lastLog = null;
@@ -618,7 +660,7 @@ function detail(f, c) {
 }
 function row(f, tag) {
   const c = f._c, ok = live(f), on = sel === f.id;
-  const d = el("div", "rd" + (ok ? (fresh(f) ? "" : " old") : " off") + (on ? " sel" : ""));
+  const d = el("div", "rd" + (ok ? (fresh(f) ? "" : " old") : " off") + (on ? " sel" : "") + (ok && band(c.sev) === 0 ? " q" : "") + (flashUntil[f.id] > Date.now() ? " flash" : ""));
   if (ok && band(c.sev) > 0) d.setAttribute("data-band", band(c.sev));
   const s = el("button", "row"), k = el("span", "rk");
   s.type = "button";
@@ -786,7 +828,20 @@ function renderStatus() {
   $("dot").className = a != null && a < LATE_MS ? "dot on" : "dot";
   $("statusText").textContent = a == null
     ? (state.loaded ? "No readings on record" : "Connecting")
-    : "Updated " + clockText(new Date(Date.parse(state.scannedAt))) + ", " + ageText(a) + " · " + state.feeds.length + " readings" + (nOld ? ", " + nOld + " over 3 hours old" : "") + (nErr ? " · " + nErr + (nErr === 1 ? " source" : " sources") + " not answering" : "");
+    : state.feeds.length + " readings · " + (nErr ? nErr + (nErr === 1 ? " source" : " sources") + " not answering" : "all sources reporting") + (nOld ? " · " + nOld + " over 3 hours old" : "") + " · updated " + clockText(new Date(Date.parse(state.scannedAt)));
+  const scores = {};
+  [["chipNat", "national"], ["chipHome", "home"]].forEach(([id, scope]) => {
+    const chip = $(id), r = dial(state.feeds, scope);
+    scores[scope] = r.score;
+    if (r.score == null) { chip.removeAttribute("data-band"); chip.querySelector("b").textContent = "–"; chip.querySelector("em").textContent = ""; return; }
+    chip.setAttribute("data-band", band(r.score));
+    chip.querySelector("b").textContent = r.score;
+    chip.querySelector("em").textContent = BANDS[band(r.score)];
+  });
+  if (scores.national != null) {
+    document.title = "USA " + scores.national + " · Home " + (scores.home == null ? "–" : scores.home) + " | Situation Monitor";
+    setIcon(band(scores.national), scores.home == null ? 0 : band(scores.home));
+  }
 
   const key = state.log.map((x) => x.t + x.text).join("|") + (wide && wide.matches ? "|w" : "");
   if (key !== lastLog) {
@@ -845,6 +900,12 @@ async function load() {
     state.trailT = arr(data.trailT);
     state.trails = data.trails && typeof data.trails === "object" ? data.trails : {};
     state.problem = "";
+    // Highlight any row whose shown value changed since the last load.
+    state.feeds.forEach((f) => {
+      const text = rowText(f, f._c).join("|");
+      if (lastText[f.id] != null && lastText[f.id] !== text) flashUntil[f.id] = Date.now() + 2600;
+      lastText[f.id] = text;
+    });
   } catch (e) {
     state.problem = state.feeds.length ? "Can't reach the readings right now. What's shown may be out of date." : "Can't reach the readings yet. They'll appear when the connection comes back.";
   }
@@ -852,7 +913,26 @@ async function load() {
   render();
 }
 
-function tick() { $("clock").textContent = clockText(new Date(), true); }
+// The tab icon is two bars, USA on the left and Home on the right, in their current band colors.
+const ICON_COLORS = ["#46c08f", "#dccb4a", "#f09a3e", "#f25c54", "#ff6aa8"];
+let iconKey = "";
+function setIcon(a, b) {
+  if (iconKey === a + "-" + b) return;
+  iconKey = a + "-" + b;
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="10" fill="#0d1116"/><rect x="14" y="14" width="14" height="36" rx="2" fill="' + ICON_COLORS[a] + '"/><rect x="36" y="14" width="14" height="36" rx="2" fill="' + ICON_COLORS[b] + '"/></svg>';
+  $("icon").href = "data:image/svg+xml," + encodeURIComponent(svg);
+}
+function two(n) { return (n < 10 ? "0" : "") + n; }
+function tick() {
+  const now = new Date();
+  $("clock").textContent = clockText(now, true);
+  $("zulu").textContent = two(now.getUTCHours()) + ":" + two(now.getUTCMinutes()) + " Z";
+  // Runs are ten minutes apart. Say when the next one is due, and say so plainly if it's late.
+  const last = Date.parse(state.scannedAt), next = $("nextText");
+  if (isNaN(last)) { next.textContent = ""; return; }
+  const left = Math.round((last + 10 * 60 * 1000 - now.getTime()) / 1000);
+  next.textContent = left > 0 ? " · next in " + Math.floor(left / 60) + ":" + two(left % 60) : left > -180 ? " · update due" : " · " + Math.round(-left / 60) + " min overdue";
+}
 Array.prototype.forEach.call(document.querySelectorAll(".gauge svg"), initGauge);
 tick();
 setInterval(tick, 1000);
