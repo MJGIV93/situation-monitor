@@ -17,13 +17,8 @@ const geo = { accept: "application/geo+json" };
 const gql = (query) => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }) });
 
 const LIST = [
-  ["smcmua-alerts", "https://www.smcmua.org/alerts.htm"],
-  ["smcmua-notice", "https://www.smcmua.org/WaterRepairs_208LakeRd_MorrisTwp.htm"],
-  ["rave-rss-1", "https://www.getrave.com/rss/smcmua/channel1"],
-  ["rave-rss-2", "https://content.getrave.com/rss/smcmua/channel1"],
-  ["rave-cap", "https://www.getrave.com/cap/smcmua/channel1"],
-  ["nixle-morris-twp", "https://nixle.us/city/nj/morris-township/"],
-  ["nixle-morristown", "https://nixle.us/city/nj/morristown/"],
+  ...Array.from({ length: 12 }, (_, i) => [`rave-channel${i + 1}`, `https://content.getrave.com/rss/smcmua/channel${i + 1}`]),
+  ["rave-root", "https://content.getrave.com/rss/smcmua"],
 ];
 
 const OUT = "samples";
