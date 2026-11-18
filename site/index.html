@@ -164,6 +164,7 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: 30px; line-heig
 .tlist .th { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding-top: 6px; }
 .math { border-top: 1px solid var(--line); padding-top: 8px; color: var(--dim); }
 .math b { color: var(--c, var(--fg)); font-weight: 600; }
+.math .why { color: var(--fg); margin: 2px 0 6px; }
 .elist li { padding: 6px 0; border-top: 1px solid var(--line); }
 .elist li:first-child { border-top: 0; padding-top: 0; }
 .elist b { display: block; font-weight: 500; color: var(--fg); }
@@ -280,7 +281,7 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: 30px; line-heig
   <div class="tail">
     <details class="how">
       <summary>How the scores work</summary>
-      <p class="small">Both scores run 0 to 100 and higher is worse. Every reading is scored 0 to 100 by a fixed rule for its type, and each row shows that rule and its arithmetic when opened. A domain takes its worst reading plus a fifth of the next two. Domains then stack by weight, so several unrelated problems at once raise a score far more than one alone. The points under each dial show how far that score would fall if the domain went quiet.</p>
+      <p class="small">Both scores run 0 to 100 and higher is worse. Every reading carries a signal from 0 to 100, which is how much concern it adds, not how big its number is. A falling stock index or a train running late has a high signal. Each reading shows its rule and arithmetic when opened. A domain takes its worst reading plus a fifth of the next two. Domains then stack by weight, so several unrelated problems at once raise a score far more than one alone. The points under each dial show how far that score would fall if the domain went quiet.</p>
       <p class="small">0 to 9 is quiet, 10 to 24 watch, 25 to 49 elevated, 50 to 74 disrupted, 75 and up severe.</p>
       <p class="small">Readings refresh every 10 minutes, and slower sources hourly. If a source stops answering, its last reading stays up. It is dimmed after 3 hours and stops counting after 24.</p>
     </details>
@@ -608,7 +609,8 @@ function detail(f, c) {
   }
   if (f.note) box.appendChild(el("div", null, String(f.note)));
   const math = el("div", "math");
-  math.appendChild(el("b", null, "Score " + Math.round(c.sev) + " · " + BANDS[band(c.sev)]));
+  math.appendChild(el("b", null, "Signal " + Math.round(c.sev) + " of 100"));
+  if (c.why) math.appendChild(el("div", "why", c.why));
   c.lines.forEach((t) => math.appendChild(el("div", null, t)));
   box.appendChild(math);
   box.appendChild(metaLine(f));
@@ -679,12 +681,12 @@ function panelExtras(f, c) {
   const trail = arr(state.trails[f.id]), times = state.trailT;
   const pts = trail.map((v, i) => [times[i], v]).filter((p) => p[1] != null && p[0] != null);
   if (pts.length >= 3) {
-    const s = section("Score over the past day"), vals = pts.map((p) => p[1]), peak = Math.max.apply(null, vals);
+    const s = section("Signal over the past day"), vals = pts.map((p) => p[1]), peak = Math.max.apply(null, vals);
     const chart = lineChart(vals, "trail", null, [0, 25]);
     s.appendChild(chart);
     const cap = el("div", "cap"), at = new Date(pts[vals.indexOf(peak)][0] * 60000), span = (pts[pts.length - 1][0] - pts[0][0]) / 60;
     cap.appendChild(el("span", null, span >= 1.5 ? "Past " + Math.round(span) + " hours" : "Past " + Math.round(span * 60) + " minutes"));
-    cap.appendChild(el("span", null, peak > 0 ? "Peak " + peak + " at " + clockText(at) : "No score in that time"));
+    cap.appendChild(el("span", null, peak > 0 ? "Peak " + peak + " at " + clockText(at) : "No signal in that time"));
     s.appendChild(cap);
     out.push(s);
   }

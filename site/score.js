@@ -91,6 +91,9 @@ function absTable(f) {
   return a.x.map((x, i) => [num(x), num(a.s[i])]).filter((p) => p[0] != null && p[1] != null);
 }
 
+// A price reading's signal says how concerning its level and recent move are.
+// It follows the bad direction for that reading, so a falling stock index scores
+// high and a rising one doesn't. Every line is written in the reading's own terms.
 function priceCalc(f) {
   const v = num(f.num), lo = num(f.lo), hi = num(f.hi), w = wk(f);
   const hasRange = v != null && lo != null && hi != null && hi > lo;
@@ -107,10 +110,15 @@ function priceCalc(f) {
     const r = adv(m) / x[3], pts = r > 0 ? interp(CURVE, r) : 0;
     if (best == null || pts > sMove) { sMove = pts; best = { label: x[0], word: x[1], m, big: x[3], r }; }
   });
+  const moved = (m) => (m < 0 ? "fell " : "rose ") + sizeText(f, Math.abs(m)) + (!isPct(f) && f.fmt !== "pct2" ? " points" : "");
+  const counts = f.bad === "high" ? "For this reading, high or rising is what counts." : f.bad === "low" ? "For this reading, low or falling is what counts." : "For this reading, an extreme or a sharp move in either direction counts.";
+  const reasons = [];
   const table = absTable(f);
+
   if (table.length && v != null) {
-    const sLevel = interp(table, v);
-    out.lines.push("Level: " + Math.round(sLevel) + ". Its own scale runs " + table.map((p) => fmt(p[0], f.fmt) + " = " + p[1]).join(", ") + ".");
+    const sLevel = interp(table, v), start = table[0][0];
+    if (sLevel >= 1) reasons.push("is at " + fmt(v, f.fmt) + ", above the " + fmt(start, f.fmt) + " where its scale starts to count");
+    out.lines.push(Math.round(sLevel) + " for its level. Its own scale runs " + table.map((p) => fmt(p[0], f.fmt) + " = " + p[1]).join(", ") + ".");
     out.sev = Math.max(sLevel, sMove);
   } else if (hasRange) {
     const p = f.bad === "high" ? pos : f.bad === "low" ? 1 - pos : Math.abs(pos - 0.5) * 2;
@@ -118,16 +126,27 @@ function priceCalc(f) {
     const easing = f.bad !== "both" && out.head != null && adv(out.head) < 0 && sPos > 0;
     if (easing) sPos *= 0.4;
     const edge = f.bad === "high" ? "high" : f.bad === "low" ? "low" : pos < 0.5 ? "low" : "high";
-    out.lines.push("Position: " + Math.round(sPos) + ". It sits " + Math.round(pos * 100) + "% of the way up its 12-month range, and the outer quarter at the " + edge + " end adds up to 20" + (easing ? ", cut here because the past week eased" : "") + ".");
+    if (sPos >= 1) reasons.push("is near its 12-month " + edge);
+    const quarter = f.bad === "high" ? "The top quarter of that range adds up to 20." : f.bad === "low" ? "The bottom quarter of that range adds up to 20." : "The outer quarter at either end adds up to 20.";
+    out.lines.push(Math.round(sPos) + " for where it sits: " + Math.round(pos * 100) + "% of the way up from its 12-month low to its high. " + quarter + (easing ? " Cut here because the past week moved back toward normal." : ""));
     out.sev = sPos + sMove;
   } else {
-    out.lines.push("Position: not scored yet. This reading doesn't have a year of history.");
+    out.lines.push("0 for where it sits. This reading doesn't have a year of history yet.");
     out.sev = sMove;
   }
-  if (best) out.lines.push("Move: " + Math.round(sMove) + ". The " + best.label + " change of " + moveText(f, best.m) + (best.r > 0 ? " is " + best.r.toFixed(1) + " times a large " + best.word + " for this series (" + sizeText(f, best.big) + ")." : " is in the harmless direction."));
-  out.lines.push("A large move is one bigger than 95% of the past year's. 1 time scores 20, 2 times 50, 4 times 90." + (table.length ? " The score is the higher of level and move." : ""));
+
+  if (best && best.r > 0) {
+    if (sMove >= 1) reasons.push(moved(best.m) + " in the past " + best.word);
+    out.lines.push(Math.round(sMove) + " for the move: it " + moved(best.m) + " in the past " + best.word + ", which is " + best.r.toFixed(1) + " times a big " + best.word + " for this reading (" + sizeText(f, best.big) + ").");
+  } else if (best) {
+    out.lines.push("0 for the move: it " + moved(best.m) + " in the past " + best.word + ", which is the harmless direction.");
+  }
+  out.lines.push("A big move is one larger than 95% of the past year's. One that size scores 20, twice that 50, four times 90." + (table.length ? " The signal is the higher of level and move." : hasRange ? " Position and move add together." : ""));
+  out.lines.push(counts);
   const cap = num(f.cap);
-  if (cap != null && out.sev > cap) { out.lines.push("Capped at " + cap + ". It's context and can't break anything by itself."); out.sev = cap; }
+  if (cap != null && out.sev > cap) { out.lines.push("Capped at " + cap + ", because it's context and can't break anything by itself."); out.sev = cap; }
+  const name = String(f.label || f.name || "It");
+  out.why = reasons.length ? name + " " + reasons.join(" and ") + "." : name + " is inside its normal range and its recent moves are ordinary.";
   return out;
 }
 
@@ -152,7 +171,8 @@ function trainCalc(f) {
   r.lines.push("Board: " + Math.round(board) + ". Counts the next three trains each way. A late train scores by how late it is (12 at 10 minutes, 20 at 20, 30 at 40) and a cancellation scores 30." + (late || canc ? " Now: " + late + " late, " + canc + " cancelled." : ""));
   if (lineDelay) r.lines.push("Line alert: " + Math.round(line) + ". NJ Transit is reporting delays of up to " + lineDelay + " minutes on the line.");
   if (f.suspended) r.lines.push("Service is suspended, which scores 90.");
-  else r.lines.push("The score is the higher of the board and any line-wide delay alert.");
+  else r.lines.push("The signal is the higher of the board and any line-wide delay alert.");
+  r.why = f.suspended ? "Service is suspended." : late || canc ? late + " late and " + canc + " cancelled among the next trains" + (lineDelay ? ", with line-wide delays of up to " + lineDelay + " minutes." : ".") : lineDelay ? "NJ Transit reports delays of up to " + lineDelay + " minutes on the line." : "The next trains are on time and there's no line-wide alert.";
   return r;
 }
 
@@ -176,6 +196,10 @@ function airportCalc(f) {
   r.lines.push("Each airport scores by its worst posted delay: 5 at 15 minutes, 12 at 30, 30 at an hour, 60 at two hours. A delay program scores at least 25, a ground stop 55, a closure 80.");
   r.lines.push("The reading is the worst airport plus a quarter of the other two.");
   if (planned && planned >= active) r.lines.push("Nothing is active, but the FAA's plan for today lists a possible program here, which scores " + planned + ".");
+  const w = worstAirport(f);
+  r.why = w && w.s && w.s !== "ok"
+    ? w.id + (w.s === "closed" ? " is closed." : w.s === "stop" ? " has a ground stop." : w.s === "program" ? " is under a delay program" + (w.min ? " averaging " + w.min + " minutes." : ".") : " has delays" + (w.min ? " of up to " + w.min + " minutes." : "."))
+    : planned ? "Nothing is delayed now, but a program is possible later today." : "All three airports are on time.";
   return r;
 }
 
@@ -285,6 +309,7 @@ function eventCalc(f, now) {
   const r = { sev: top ? top.pts : 0, lines: [], ev: ev.map((x) => Math.round(x.pts)), active: ev.filter((x) => x.pts > 0).length };
   if (top && top.pts > 0) r.lines.push("Highest: " + (top.e.event || top.e.title || "event") + ", " + top.why + ".");
   r.lines.push(EVENT_NOTES[f.rule] || EVENT_NOTES.context);
+  r.why = top && top.pts > 0 ? (r.active === 1 ? "One item is active" : r.active + " items are active") + ", and the highest sets the signal." : arr(f.events).length ? "Nothing listed is recent or serious enough to count." : "Nothing is active.";
   return r;
 }
 
@@ -302,21 +327,27 @@ export function calc(f, now = Date.now()) {
     const sv = arr(f.sevs).length === n ? f.sevs : n === 5 ? [0, 15, 40, 70, 95] : steps.map((_, i) => Math.round((95 * i) / Math.max(1, n - 1)));
     r.sev = num(sv[st]) || 0;
     r.lines.push("Level " + (st + 1) + " of " + n + ". The levels score " + sv.join(", ") + ".");
+    r.why = "Its level is " + String(steps[st] || st + 1) + (arr(f.ladder)[st] ? " (" + f.ladder[st] + ")." : ".");
   } else if (k === "status") {
     r.sev = STATE_SEV[f.state] || 0;
     r.lines.push("Status pages score 0 for OK, 20 for minor, 50 for major and 80 for critical.");
+    r.why = r.sev ? "It reports a " + f.state + " problem." : "It reports no problems.";
   } else if (k === "lines") {
     let d = 0, su = 0;
     arr(f.lines).forEach((l) => { if (l && l.s === "suspended") su++; else if (l && l.s === "delays") d++; });
     r.sev = Math.min(80, d * 10 + su * 35);
     r.lines.push("10 per line with delays, 35 per suspended line.");
+    r.why = d || su ? (d ? d + (d === 1 ? " line has" : " lines have") + " delays" : "") + (d && su ? " and " : "") + (su ? su + (su === 1 ? " line is" : " lines are") + " suspended" : "") + "." : "None of your lines has an unplanned alert.";
   } else if (k === "count" && num(f.base)) {
     const tol = num(f.tol) || 1.25;
     r.sev = clamp(((num(f.num) || 0) / f.base - tol) * 40, 0, 80);
+    const ratio = (num(f.num) || 0) / f.base;
+    r.why = commas(num(f.num) || 0, 0) + " is " + (ratio >= 1.05 ? Math.round((ratio - 1) * 100) + "% above" : ratio <= 0.95 ? Math.round((1 - ratio) * 100) + "% below" : "about level with") + " its usual " + commas(f.base, 0) + "." + (r.sev < 1 && ratio >= 1.05 ? " It starts to count at " + (tol === 2 ? "double" : Math.round(tol * 100) + "% of") + " the usual." : "");
     r.lines.push("Scored against its average of " + commas(f.base, 1) + ". Points start at " + (tol === 2 ? "double the average" : Math.round((tol - 1) * 100) + "% above average") + " and reach 40 one average higher.");
   } else {
     r.sev = num(f.sev) || 0;
-    r.lines.push(r.sev ? "Scored by a fixed value set in the fetcher." : k === "count" ? "Not scored yet. It needs a few days of its own history to know what's normal." : "Scores 0 while nothing is active.");
+    r.lines.push(r.sev ? "Scored by a fixed value set in the fetcher." : k === "count" ? "Not scored. It's either context, or still building the history it needs to know what's normal." : "Scores 0 while nothing is active.");
+    r.why = k === "count" ? "It's shown as a number without a signal for now." : "Nothing is active.";
   }
   if (!RULED[k] && !(k === "count" && num(f.base)) && num(f.sev) != null) r.sev = num(f.sev);
   r.sev = Math.round(clamp(r.sev || 0, 0, 100));

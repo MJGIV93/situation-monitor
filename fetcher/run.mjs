@@ -104,7 +104,7 @@ export async function runOnce({ get = httpGet, now = Date.now(), state = {}, eve
     const was = prev[f.id];
     if (!was || was.b === b) continue;
     const text = rowText(f, f._c, now).filter(Boolean).join(", ");
-    entries.push({ t: iso, id: f.id, dir: b > was.b ? "up" : "down", text: `${f.label}: ${text}. Score ${f._c.sev}, was ${was.sev}.` });
+    entries.push({ t: iso, id: f.id, dir: b > was.b ? "up" : "down", text: `${f.label}: ${text}. Signal ${f._c.sev}, was ${was.sev}.` });
   }
   for (const [scope, label] of [["national", "USA"], ["home", "Home"]]) {
     const s = scores[scope];
