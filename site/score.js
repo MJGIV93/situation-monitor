@@ -358,10 +358,17 @@ export function calc(f, now = Date.now()) {
   } else if (k === "lines") {
     const pick = (s) => arr(f.lines).filter((l) => l && l.s === s).map((l) => l.id);
     const list = (a) => (a.length > 1 ? a.slice(0, -1).join(", ") + " and " + a[a.length - 1] : a[0]);
-    const dl = pick("delays"), sl = pick("suspended"), d = dl.length, su = sl.length;
-    r.sev = Math.min(80, d * 10 + su * 35);
-    r.lines.push("10 for each line with delays, 35 for each suspended line.");
-    r.why = d || su ? "The " + (d ? list(dl) + (d === 1 ? " line has" : " lines have") + " delays" : "") + (d && su ? ", and the " : "") + (su ? list(sl) + (su === 1 ? " line is" : " lines are") + " suspended" : "") + "." : "None of your lines has an unplanned alert.";
+    const dl = pick("delays"), pl = pick("part"), sl = pick("suspended"), d = dl.length, pa = pl.length, su = sl.length;
+    const wide = f.system && num(f.system.suspended) != null ? f.system.suspended : 0;
+    r.sev = Math.min(70, d * 2 + pa * 8 + su * 30);
+    r.lines.push("Delays are routine: 2 for each line. 8 for each line suspended on part of its route, 30 for each line suspended outright.");
+    if (wide >= 8) { r.sev = Math.max(r.sev, 80); r.lines.push(wide + " lines across the subway are suspended, which counts as a systemwide failure at 80."); }
+    const parts = [];
+    if (su) parts.push("the " + list(sl) + (su === 1 ? " line is" : " lines are") + " suspended");
+    if (pa) parts.push("the " + list(pl) + (pa === 1 ? " line is" : " lines are") + " suspended on part of the route");
+    if (d) parts.push("the " + list(dl) + (d === 1 ? " line has" : " lines have") + " delays, which are routine and add little");
+    const text = parts.join(", and ");
+    r.why = wide >= 8 ? wide + " subway lines are suspended, a systemwide failure." : text ? text.charAt(0).toUpperCase() + text.slice(1) + "." : "None of your lines has an unplanned alert.";
   } else if (k === "count" && num(f.base)) {
     const tol = num(f.tol) || 1.25;
     r.sev = clamp(((num(f.num) || 0) / f.base - tol) * 40, 0, 80);
@@ -448,8 +455,11 @@ export function rowText(f, c, now = Date.now()) {
   }
   if (k === "lines") {
     const hit = arr(f.lines).filter((l) => l && l.s && l.s !== "ok");
-    const ids = (hit.length ? hit : arr(f.lines)).map((l) => l.id).join(", ");
-    return hit.length ? [hit.some((l) => l.s === "suspended") ? "Suspended" : "Delays", ids + (hit.length === 1 ? " line" : " lines")] : ["Normal", ids];
+    const names = (s) => { const a = arr(f.lines).filter((l) => l && l.s === s).map((l) => l.id); return a.join(", ") + (a.length === 1 ? " line" : " lines"); };
+    if (f.system && num(f.system.suspended) >= 8) return ["Systemwide", f.system.suspended + " lines out"];
+    if (hit.some((l) => l.s === "suspended")) return ["Suspended", names("suspended")];
+    if (hit.some((l) => l.s === "part")) return ["Partial", names("part")];
+    return hit.length ? ["Delays", names("delays")] : ["Normal", arr(f.lines).map((l) => l.id).join(", ")];
   }
   if (k === "airports") {
     const w = worstAirport(f);

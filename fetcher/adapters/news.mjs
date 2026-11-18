@@ -22,7 +22,8 @@ const FEEDS = [
 const OUTLETS = [...new Set(FEEDS.map((f) => f[0]))];
 // A story is listed while outlets have carried it in the past 12 hours, and ranked by how
 // many have published on it in the past 6, so yesterday's news sinks as today's arrives.
-const WINDOW_H = 12, FRESH_H = 6, MIN_OUTLETS = 3, SHOWN = 12;
+// Two outlets are enough to list a story, as long as their headlines clearly match.
+const WINDOW_H = 12, FRESH_H = 6, MIN_OUTLETS = 2, SHOWN = 20;
 
 // Running stories. Every headline on one of these is gathered into a single entry, because
 // a war produces a dozen differently worded headlines a day that would never group by wording.
@@ -134,7 +135,9 @@ export function group(items) {
   for (const c of cluster(rest)) {
     const titles = [...perOutlet(c).values()].map((x) => x.title);
     const flag = FLAGS.find(([, re]) => titles.filter((t) => re.test(t)).length >= 2)?.[0];
-    stories.push(story(c, leadOf(c), flag, flag ? 2 : MIN_OUTLETS));
+    // A pair has to share three distinctive words, since two is too easy to hit by chance.
+    const by = [...perOutlet(c).values()], loose = by.length === 2 && !flag && [...by[0].t].filter((w) => by[1].t.has(w)).length < 3;
+    if (!loose) stories.push(story(c, leadOf(c), flag));
   }
   return stories;
 }
@@ -152,7 +155,7 @@ export default [
       need(answered.size >= 6, `only ${answered.size} of ${OUTLETS.length} news outlets answered`);
       const stories = group(pages.filter(Boolean).flat())
         .filter((s) => s.n >= s.min)
-        // Stories with new coverage come first. A watched topic ranks as if two more outlets carried it.
+        // Stories with new coverage come first, widest first. A watched topic ranks as if two more outlets carried it.
         .sort((a, b) => (b.fresh > 0) - (a.fresh > 0) || b.fresh + (b.topic ? 2 : 0) + b.n / 4 - (a.fresh + (a.topic ? 2 : 0) + a.n / 4) || b.last - a.last)
         .slice(0, SHOWN)
         .map(({ min, ...s }) => ({ ...s, title: clip(s.title, 150), first: new Date(s.first).toISOString(), last: new Date(s.last).toISOString() }));

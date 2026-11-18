@@ -101,7 +101,8 @@ function lineAlerts(system, abbr) {
 const MY_LINES = ["2", "3", "A", "C"];
 function mtaKind(type) {
   if (/^Planned|Station Notice|Boarding Change|Extra Service|Reduced Service|Special/i.test(type)) return null;
-  if (/Suspended/i.test(type)) return "suspended";
+  if (/Part Suspended/i.test(type)) return "part";
+  if (/Suspended|No Scheduled Service/i.test(type)) return "suspended";
   return "delays";
 }
 
@@ -209,6 +210,8 @@ export default [
       need(Array.isArray(feed.entity), "no alert list");
       const now = ctx.now / 1000;
       const state = Object.fromEntries(MY_LINES.map((l) => [l, { s: "ok", text: "" }]));
+      const RANK = { ok: 0, delays: 1, part: 2, suspended: 3 };
+      const out = new Set(), cut = new Set();
       let citywide = 0;
       for (const e of feed.entity) {
         const a = e.alert ?? {};
@@ -218,8 +221,10 @@ export default [
         citywide++;
         const text = a.header_text?.translation?.find((t) => t.language === "en")?.text ?? "";
         for (const ent of a.informed_entity ?? []) {
+          if (ent.route_id && kind === "suspended") out.add(ent.route_id);
+          if (ent.route_id && kind === "part") cut.add(ent.route_id);
           const line = state[ent.route_id];
-          if (!line || line.s === "suspended") continue;
+          if (!line || RANK[kind] <= RANK[line.s]) continue;
           line.s = kind;
           line.text = text;
         }
@@ -228,9 +233,11 @@ export default [
       return {
         name: "NYC subway, 2, 3, A and C lines", label: "Subway", rowLabel: ["Subway", "from Penn Station"], order: 3, tile: "air", scope: "home", kind: "lines",
         lines: MY_LINES.map((id) => ({ id, s: state[id].s })),
+        // How much of the whole subway is out, so a systemwide failure registers even off your lines.
+        system: { suspended: out.size, part: cut.size },
         short: `${citywide} citywide`,
-        track: { citywide, ...Object.fromEntries(MY_LINES.map((l) => [l, state[l].s === "suspended" ? 2 : state[l].s === "delays" ? 1 : 0])) },
-        note: `From the MTA's official alert feed. Planned work is left out. Across the whole subway, ${citywide} unplanned alert${citywide === 1 ? " is" : "s are"} active.`,
+        track: { citywide, out: out.size, ...Object.fromEntries(MY_LINES.map((l) => [l, RANK[state[l].s]])) },
+        note: `From the MTA's official alert feed. Planned work is left out. Delays are an everyday event and barely count; a suspended line or a systemwide failure does. Across the whole subway, ${citywide} unplanned alert${citywide === 1 ? " is" : "s are"} active and ${out.size} line${out.size === 1 ? " is" : "s are"} suspended.`,
         items: [...new Set(hit.map((l) => clip(state[l].text.replace(/\]\s*\[/g, "/").replace(/\[(\w+)\]/g, "$1"), 180)))].slice(0, 3),
         source: "https://www.mta.info/alerts",
       };

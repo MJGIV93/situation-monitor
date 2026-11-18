@@ -228,7 +228,8 @@ body.wall .tail, body.wall .how { display: none; }
 .pips i.gap { width: 1px; height: 12px; border-radius: 0; background: var(--line); }
 .bullets { display: flex; gap: 3px; justify-content: flex-end; }
 .bullets i { font-style: normal; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--b0); font-size: 11px; font-weight: 600; line-height: 15px; text-align: center; }
-.bullets i[data-s="delays"] { border-color: var(--b2); color: var(--b2); }
+.bullets i[data-s="delays"] { border-color: var(--b1); color: var(--b1); }
+.bullets i[data-s="part"] { border-color: var(--b2); color: var(--b2); }
 .bullets i[data-s="suspended"] { border-color: var(--b3); color: var(--b3); }
 .ports { display: flex; gap: 3px; justify-content: flex-end; }
 .ports i { font-style: normal; font-size: 9.5px; font-weight: 600; line-height: 1.1; padding: 2px 3px; border: 1.5px solid var(--b0); border-radius: 3px; }
@@ -439,7 +440,7 @@ body.compact .dial .sparkbox { grid-area: spark; }
     <details class="how">
       <summary>How the scores work</summary>
       <p class="small">Both scores run 0 to 100 and higher is worse. Every reading carries a signal from 0 to 100, which is how much concern it adds, not how big its number is. A falling stock index or a train running late has a high signal. Each reading shows its rule and arithmetic when opened. A domain takes its worst reading plus a fifth of the next two. Domains then stack by weight. Real trouble shows up in several places at once, so a domain acting alone counts at 60% of its weight. It counts in full when two other domains are also active, or when it is severe enough to stand by itself. The points under each dial show how far that score would fall if the domain went quiet.</p>
-      <p class="small">Headlines are context and never change a score. A story is listed when three or more of 12 news outlets are carrying it at once, and running stories such as Iran or Russia and Ukraine are gathered into one entry. Each headline links to that outlet's own page.</p>
+      <p class="small">Headlines are context and never change a score. A story is listed when at least two of 12 news outlets have carried it in the past 12 hours, ordered by how many published on it in the past 6. Running stories such as Iran or Russia and Ukraine are gathered into one entry. Each headline links to that outlet's own page.</p>
       <p class="small">0 to 9 is quiet, 10 to 24 watch, 25 to 49 elevated, 50 to 74 disrupted, 75 and up severe. The numbers inside each dial's arc mark where those bands begin.</p>
       <p class="small legendrow"><span><i class="lt"></i>Checked and fine</span><span data-band="2"><i class="lt" style="background: var(--c)"></i>Active, in its band color</span><span><i class="lt ns"></i>Not scored: context, or still building a baseline</span><span><i class="lt dead"></i>Source stale or not answering</span></p>
       <p class="small">Readings refresh every 10 minutes, and slower sources hourly. If a source stops answering, its last reading stays up. It is dimmed after 3 hours and stops counting after 24.</p>
@@ -790,7 +791,7 @@ function detail(f, c) {
     arr(f.lines).forEach((l) => {
       const li = el("li");
       li.appendChild(el("b", null, String(l.id || "") + " train"));
-      li.appendChild(el("span", null, l.s === "suspended" ? "Suspended" : l.s === "delays" ? "Delays" : "No alerts"));
+      li.appendChild(el("span", null, l.s === "suspended" ? "Suspended" : l.s === "part" ? "Suspended on part of the route" : l.s === "delays" ? "Delays" : "No alerts"));
       ll.appendChild(li);
     });
     box.appendChild(ll);
@@ -1038,7 +1039,7 @@ const newsCard = el("section", "card dom news");
 let newsKey = "";
 function renderNews() {
   // A phone gets the top eight. Wider screens get them all, in a card that scrolls.
-  const n = state.news, stories = arr(n && n.stories).slice(0, wide && wide.matches ? 12 : 8);
+  const n = state.news, stories = arr(n && n.stories).slice(0, wide && wide.matches ? 20 : 8);
   const key = JSON.stringify([n && n.checkedAt, stories.map((s) => s.link)]);
   if (key === newsKey) return;
   newsKey = key;
@@ -1049,7 +1050,7 @@ function renderNews() {
   head.appendChild(el("h3", "ctitle", "Headlines"));
   head.appendChild(el("span", "small", n && n.checkedAt ? "as of " + clockText(new Date(n.checkedAt)) : ""));
   newsCard.appendChild(head);
-  if (!stories.length) newsCard.appendChild(el("p", "small", "No story is being carried by three or more outlets right now."));
+  if (!stories.length) newsCard.appendChild(el("p", "small", "No story is being carried by two or more outlets right now."));
   stories.forEach((s) => {
     const d = el("details", "hl"), sum = el("summary"), meta = el("span", "hlm");
     d.dataset.k = String(s.topic || s.link);
