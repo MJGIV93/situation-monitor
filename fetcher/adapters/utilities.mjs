@@ -1,10 +1,5 @@
 import { json, need, fetchOk, strip, clip, commas, short, pct, etDay } from "../lib/util.mjs";
 
-// Notices sent by text that the utility hasn't added to its alerts page yet.
-const UNLISTED = [
-  { url: "https://www.smcmua.org/WaterRepairs_208LakeRd_MorrisTwp.htm", title: "Water Repairs in Morris Township - Lake Road", at: Date.parse("2026-11-18T02:04:44Z") },
-];
-
 const SHARE_STEPS = ["Normal", "Scattered", "Elevated", "Major", "Severe"];
 const SHARE_LADDER = ["under 0.1% out", "0.1% to 0.5%", "0.5% to 2%", "2% to 10%", "over 10%"];
 const shareStep = (p) => (p >= 10 ? 4 : p >= 2 ? 3 : p >= 0.5 ? 2 : p >= 0.1 ? 1 : 0);
@@ -145,9 +140,9 @@ export default [
     every: 10,
     async run(ctx) {
       // Notices are listed on the utility's alerts page, each linking to its own page.
-      // Emergency notices go out by text first and can reach that list hours later.
-      const base = "https://www.smcmua.org/";
-      const html = await fetchOk(ctx, base + "alerts.htm");
+      // The site is heavily cached, so every request carries a throwaway query to get the current copy.
+      const base = "https://www.smcmua.org/", fresh = "?t=" + Math.floor(ctx.now / 60000);
+      const html = await fetchOk(ctx, base + "alerts.htm" + fresh);
       need(/ALERTS/i.test(html), "not the SMCMUA alerts page");
       const seen = (ctx.cache.seen ??= {});
       for (const [, href, inner] of html.matchAll(/<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)) {
@@ -156,13 +151,12 @@ export default [
         const year = Number(m[4]) < 100 ? 2000 + Number(m[4]) : Number(m[4]);
         seen[new URL(href, base).href] ??= { title: m[1], at: Date.UTC(year, m[2] - 1, m[3], 17) };
       }
-      for (const n of UNLISTED) seen[n.url] ??= { title: n.title, at: n.at };
       for (const [url, n] of Object.entries(seen)) if (ctx.now - n.at > 5 * 86400e3) delete seen[url];
 
       // Open each notice from the past two days to see whether the work is still under way.
       const recent = Object.entries(seen).filter(([, n]) => ctx.now - n.at < 2.5 * 86400e3).sort((x, y) => y[1].at - x[1].at).slice(0, 8);
       for (const [url, n] of recent) {
-        const res = await ctx.get(url);
+        const res = await ctx.get(url + fresh);
         if (!res.ok) continue;
         const text = strip(res.text);
         n.status = /boil[- ]water advisory/i.test(text) && !/no boil[- ]water advisory/i.test(text) ? "boil" : /in progress/i.test(text) ? "active" : /complete|restored/i.test(text) ? "done" : "posted";
@@ -177,7 +171,7 @@ export default [
         state: boil ? "critical" : nearMe.length ? "major" : open.length ? "minor" : "ok",
         short: boil ? "boil water" : nearMe.length ? "repairs near you" : open.length ? `${open.length} repair${open.length > 1 ? "s" : ""} nearby` : "no active notice",
         items: recent.map(([, n]) => say(n)).slice(0, 6),
-        note: "From the utility's alerts page and each notice it links to. A repair under way in Morristown or Morris Township counts as major, one in a neighboring town as minor, and a boil-water advisory as critical. Emergency notices go out by text first and can take hours to reach that page, so a new one may not show here right away.",
+        note: "From the utility's alerts page and each notice it links to. A repair under way in Morristown or Morris Township counts as major, one in a neighboring town as minor, and a boil-water advisory as critical. Checked every 10 minutes.",
         source: "https://www.smcmua.org/alerts.htm",
         track: { open: open.length, local: nearMe.length, boil: boil ? 1 : 0 },
       };
