@@ -333,7 +333,12 @@ export function localize(f, me) {
     step = Math.max(step, s);
     if (d != null && (!nearest || d < nearest.d)) nearest = { d, name: p.name };
   });
-  return { ...f, step, mine: true, detail: nearest ? "The nearest work, at " + nearest.name + ", is " + milesText(nearest.d) + " from the location saved on this device." : f.detail };
+  // Each listed notice that names one of the places gets its distance appended.
+  const items = arr(f.items).map((x) => {
+    const p = places.find((q) => q && q.name && num(q.lat) != null && String(x).indexOf(q.name) >= 0);
+    return p ? String(x) + ", " + milesText(miles(me.lat, me.lon, p.lat, p.lon)) + " from you" : x;
+  });
+  return { ...f, step, items, mine: true, detail: nearest ? "The nearest work, at " + nearest.name + ", is " + milesText(nearest.d) + " from the location saved on this device." : f.detail };
 }
 
 /* ---- one rule per reading type ---- */
@@ -349,7 +354,8 @@ export function calc(f, now = Date.now()) {
     const steps = arr(f.steps), n = steps.length || 5, st = clamp(Math.round(num(f.step) || 0), 0, n - 1);
     const sv = arr(f.sevs).length === n ? f.sevs : n === 5 ? [0, 15, 40, 70, 95] : steps.map((_, i) => Math.round((95 * i) / Math.max(1, n - 1)));
     r.sev = num(sv[st]) || 0;
-    r.lines.push("Level " + (st + 1) + " of " + n + ". The levels score " + sv.join(", ") + ".");
+    // What this level counts, and what the next one up would.
+    r.lines.push("This level counts " + sv[st] + "." + (st < n - 1 ? " The next one up, " + String(arr(f.steps)[st + 1]) + ", counts " + sv[st + 1] + "." : ""));
     r.why = "Its level is " + String(steps[st] || st + 1) + (arr(f.ladder)[st] ? " (" + f.ladder[st] + ")." : ".");
   } else if (k === "status") {
     r.sev = STATE_SEV[f.state] || 0;

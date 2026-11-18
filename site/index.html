@@ -195,6 +195,7 @@ body.wall .tail, body.wall .how { display: none; }
 .mark { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--c, transparent); border: 2px solid var(--c, var(--stale)); }
 .grp { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 10px; padding-bottom: 2px; border-bottom: 1px solid var(--line); }
 .grp span { font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--dim); }
+.tnote { margin: 8px 0 0; font-size: 11.5px; color: var(--dim); }
 .grp em { font-style: normal; font-size: 11px; letter-spacing: 0.04em; color: var(--dim); }
 .grp b { font-family: var(--f-display); font-weight: 600; font-size: 17px; line-height: 1; color: var(--c, var(--stale)); }
 
@@ -275,6 +276,7 @@ body.wall .tail, body.wall .how { display: none; }
 .ladder li.cur { color: var(--fg); font-weight: 600; }
 .tlist b { font-weight: 500; color: var(--fg); }
 .tlist.said li { color: var(--fg); }
+.tlist.said li.done { color: var(--dim); }
 .dnote { color: var(--dim); font-size: 13px; }
 .tlist .th { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding-top: 6px; }
 .math { border-top: 1px solid var(--line); padding-top: 8px; color: var(--dim); }
@@ -698,8 +700,11 @@ function instrument(f, c) {
   } else if (k === "level") {
     box = el("div", "steps");
     // One segment for each level above the lowest, so a normal reading lights nothing.
-    const n = arr(f.steps).length || 5, st = clamp(Math.round(num(f.step) || 0), 0, n - 1);
-    for (let i = 1; i < n; i++) box.appendChild(el("i", i <= st ? "on" : ""));
+    // A reading can supply its own shorter meter when some of its levels are near-duplicates.
+    const n = arr(f.steps).length || 5, st = clamp(Math.round(num(f.step) || 0), 0, n - 1), own = f.meter && num(f.meter.of) ? f.meter : null;
+    const total = own ? own.of : n - 1, lit = own ? num(arr(own.at)[st]) || 0 : st;
+    for (let i = 1; i <= total; i++) box.appendChild(el("i", i <= lit ? "on" : ""));
+    if (total <= 3) box.className += " three";
   } else if (k === "trains") {
     box = el("div", "pips");
     // The direction that matters at this hour, behind an arrow: out in the morning, back after noon.
@@ -871,7 +876,7 @@ function detail(f, c) {
   const items = arr(f.items).filter((x) => typeof x === "string" && x);
   if (items.length) {
     const il = el("ul", "tlist said");
-    items.forEach((x) => il.appendChild(el("li", null, x)));
+    items.forEach((x) => il.appendChild(el("li", /^(Completed|Posted):/.test(x) ? "done" : "", x)));
     box.appendChild(il);
   }
   const later = arr(f.later).filter((x) => typeof x === "string" && x);
@@ -1095,6 +1100,9 @@ function renderSignals() {
   top.forEach((f) => host.appendChild(row(f, f.scope === "home" ? "HOME" : "USA", "sig")));
   $("signalNone").hidden = top.length > 0 || !state.loaded;
 }
+// A line under a tile for something it can't show.
+const TILE_NOTES = { power: "No gas reading: PSE&G doesn't publish gas outages." };
+
 // Weather: current conditions and the next 12 hours, with the two weather-alert readings underneath.
 const SKY = {
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/>',
@@ -1225,8 +1233,9 @@ function renderDomains() {
   const wx = weatherCard();
   if (wx) host.appendChild(wx);
   TILES.forEach((t) => {
-    // Readings shown on a widget card of their own (weather alerts) are left off the domain's tile.
-    const feeds = state.feeds.filter((f) => f.tile === t.id && !f.card);
+    // Readings shown on a widget card of their own (weather alerts) or lent to another tile are left off this one.
+    const feeds = state.feeds.filter((f) => f.tile === t.id && !f.card && !f.showIn);
+    const guests = state.feeds.filter((f) => f.showIn === t.id);
     if (!feeds.length) return;
     const card = el("section", "card dom"), head = el("div", "domhead");
     let worst = -1;
@@ -1252,6 +1261,19 @@ function renderDomains() {
       card.appendChild(g);
       gf.forEach((f) => card.appendChild(row(f, "", "dom")));
     });
+    if (guests.length) {
+      // Readings that belong to another domain but are easier to find here, like home internet beside power and water.
+      const from = tileName(guests[0].tile), g = el("div", "grp"), gl = guests.filter((f) => live(f)), ts = gl.length ? Math.round(tileScore(gl.map(sev))) : null, gw = el("em");
+      g.appendChild(el("span", null, "Connections"));
+      gw.appendChild(document.createTextNode("signal "));
+      gw.appendChild(el("b", null, ts == null ? "–" : String(ts)));
+      gw.title = "Counts toward " + from + " on the Home dial";
+      g.appendChild(gw);
+      if (ts != null) g.setAttribute("data-band", band(ts));
+      card.appendChild(g);
+      guests.sort((a, b) => live(b) - live(a) || sev(b) - sev(a) || (num(a.order) || 50) - (num(b.order) || 50)).forEach((f) => card.appendChild(row(f, "", "dom")));
+    }
+    if (TILE_NOTES[t.id]) card.appendChild(el("p", "tnote", TILE_NOTES[t.id]));
     if (worst >= 0) head.setAttribute("data-band", band(worst));
     host.appendChild(card);
   });

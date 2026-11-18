@@ -35,7 +35,7 @@ function statusDoc({ id, host, name, label, source, note = "", w, wWhy }) {
 
 // Georgia Tech's IODA probes networks from outside. The reading compares the
 // latest count of responding address blocks with the past day's median.
-function ioda({ id, asn, entity = `asn/${asn}`, scope = "home", name, label, note }) {
+function ioda({ id, asn, entity = `asn/${asn}`, scope = "home", name, label, rowLabel, showIn, order, note }) {
   return {
     id,
     every: 10,
@@ -54,7 +54,7 @@ function ioda({ id, asn, entity = `asn/${asn}`, scope = "home", name, label, not
       need(known.length, "no usable signal");
       const worst = Math.min(...known);
       return {
-        name, label, tile: "net", scope, kind: "level", note,
+        name, label, rowLabel, showIn, order, tile: "net", scope, kind: "level", note,
         source: `https://ioda.inetintel.cc.gatech.edu/${entity}`,
         steps: ["Normal", "Dip", "Partial outage", "Major outage"], sevs: [0, 20, 50, 85],
         ladder: ["over 90% reachable", "75% to 90%", "40% to 75%", "under 40%"],
@@ -157,11 +157,11 @@ export default [
     note: "Georgia Tech's IODA project measures how much of the country's address space is reachable from outside. A nationwide carrier or backbone failure would show here.",
   }),
   ioda({
-    id: "isp-optimum", asn: 6128, name: "Optimum network (IODA)", label: "Optimum",
+    id: "isp-optimum", asn: 6128, name: "Home internet, Optimum's network", label: "Home internet", rowLabel: ["Home internet", "Optimum"], showIn: "power", order: 1,
     note: "Georgia Tech's IODA project probes the network from outside. It covers Optimum as a whole, so one neighborhood losing service would not show.",
   }),
   ioda({
-    id: "isp-verizon", asn: 6167, name: "Verizon Wireless network (IODA)", label: "Verizon",
+    id: "isp-verizon", asn: 6167, name: "Cell service, Verizon's network", label: "Cell service", rowLabel: ["Cell service", "Verizon"], showIn: "power", order: 2,
     note: "Measures the wireless network's link to the internet, not cell tower coverage.",
   }),
 ];

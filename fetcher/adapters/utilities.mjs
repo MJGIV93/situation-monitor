@@ -7,7 +7,7 @@ const shareStep = (p) => (p >= 10 ? 4 : p >= 2 ? 3 : p >= 0.5 ? 2 : p >= 0.1 ? 1
 // Kubra hosts both utilities' outage maps. The data folder changes every few
 // minutes, and each map publishes several summary files for different areas,
 // so the one matching the utility's whole customer base is picked by size.
-function kubra({ id, name, label, note, stormcenter, view, customers, source, w, wWhy }) {
+function kubra({ id, name, label, rowLabel, order, note, stormcenter, view, customers, source, w, wWhy }) {
   return {
     id,
     every: 10,
@@ -31,10 +31,11 @@ function kubra({ id, name, label, note, stormcenter, view, customers, source, w,
       ctx.cache.summary = best.n;
       const out = best.t.total_cust_a?.val ?? 0, served = best.t.total_cust_s, share = (out / served) * 100;
       return {
-        name, label, tile: "power", scope: "home", kind: "level", note, source, w, wWhy,
-        steps: SHARE_STEPS, ladder: SHARE_LADDER, step: shareStep(share),
+        name, label, rowLabel, order, tile: "power", scope: "home", kind: "level", note, source, w, wWhy,
+        // A whole utility's territory is background. Scattered outages there are an ordinary day.
+        steps: SHARE_STEPS, ladder: SHARE_LADDER, sevs: [0, 3, 10, 45, 80], step: shareStep(share),
         short: `${short(out)} out`,
-        detail: `${commas(out)} of ${commas(served)} customers without power, or ${pct(share)}, across ${commas(best.t.total_outages ?? 0)} outages.`,
+        detail: `${commas(out)} of ${commas(served)} customers without power${share >= 0.01 ? `, or ${pct(share)}` : ""}, across ${commas(best.t.total_outages ?? 0)} outage${best.t.total_outages === 1 ? "" : "s"}.`,
         dataAt: best.at,
         track: { out, served, outages: best.t.total_outages ?? 0 },
       };
@@ -45,7 +46,7 @@ function kubra({ id, name, label, note, stormcenter, view, customers, source, w,
 // The same map publishes a report with a row for every municipality.
 const TOWN_STEPS = ["Normal", "Scattered", "Neighborhood", "Widespread", "Town-wide"];
 const TOWN_LADDER = ["under 0.1% out", "0.1% to 1%", "1% to 5%", "5% to 25%", "over 25%"];
-function kubraTowns({ id, name, label, note, stormcenter, view, county, towns, source }) {
+function kubraTowns({ id, name, label, rowLabel, order, note, stormcenter, view, county, towns, source }) {
   const api = `https://kubra.io/stormcenter/api/v1/stormcenters/${stormcenter}/views/${view}`;
   return {
     id,
@@ -74,8 +75,9 @@ function kubraTowns({ id, name, label, note, stormcenter, view, county, towns, s
       const etr = rows.map((r) => Date.parse(r.etr)).filter((t) => t > ctx.now).sort((a, b) => b - a)[0];
       const say = (r) => `${towns[r.name]}: ${r.cust_a?.mask && r.cust_a.val > 0 ? "fewer than " + r.cust_a.mask : commas(r.cust_a?.val ?? 0)} of ${commas(r.cust_s)} out`;
       return {
-        name, label, tile: "power", scope: "home", kind: "level", note, source,
-        steps: TOWN_STEPS, ladder: TOWN_LADDER, sevs: [0, 5, 20, 45, 75],
+        name, label, rowLabel, order, tile: "power", scope: "home", kind: "level", note, source,
+        // Power in your own town is the reading that matters most here, so it climbs fastest.
+        steps: TOWN_STEPS, ladder: TOWN_LADDER, sevs: [0, 8, 25, 55, 85],
         step: share >= 25 ? 4 : share >= 5 ? 3 : share >= 1 ? 2 : share >= 0.1 ? 1 : 0,
         short: out ? `${masked && out < 40 ? "under " + (Math.ceil((out + 1) / 20) * 20) : commas(out)} out` : "none out",
         detail: rows.map(say).join(". ") + "." + (etr ? ` JCP&L estimates power back by ${etWeekdayClock(etr)}.` : ""),
@@ -116,7 +118,7 @@ export default [
       const total = states.reduce((a, s) => a + s.out, 0);
       const top = states.slice(0, 2).map((s) => `${s.state} ${commas(s.out)}`);
       return {
-        name: "Power outages, nationwide (DOE ODIN)", label: "US outages", tile: "power", scope: "national", kind: "level",
+        name: "Power outages, nationwide (DOE ODIN)", label: "US power outages", rowLabel: ["Power outages", "nationwide"], tile: "power", scope: "national", kind: "level",
         note: "Energy Department data from utilities that choose to report, so it undercounts.",
         source: "https://ornl.opendatasoft.com/explore/dataset/odin-real-time-outages-county/",
         steps: ["Normal", "Raised", "Elevated", "Major", "Severe"],
@@ -129,19 +131,20 @@ export default [
     },
   },
   kubra({
-    id: "jcpl", name: "JCP&L outages", label: "JCP&L", note: "All of JCP&L's New Jersey territory, from its own outage map.",
+    id: "jcpl", name: "Power outages, all of JCP&L", label: "JCP&L territory", rowLabel: ["Power, JCP&L", "all of its NJ area"], order: 3,
+    note: "All of JCP&L's New Jersey territory, from its own outage map. Scattered outages somewhere in it are an ordinary day, so this only counts when a large share is out.",
     stormcenter: "6c715f0e-bbec-465f-98cc-0b81623744be", view: "fcd7c23d-de37-4471-8ca3-37c3260f94fa", customers: 1161627,
     source: "https://outages-nj.firstenergycorp.com/",
   }),
   kubraTowns({
-    id: "jcpl-town", name: "JCP&L outages, Morristown and Morris Township", label: "JCP&L in town",
+    id: "jcpl-town", name: "Power outages in Morristown and Morris Township", label: "Power in town", rowLabel: ["Power in town", "JCP&L, Morristown"], order: 2,
     note: "Customers without power in Morristown and Morris Township together, from the town rows of JCP&L's outage map. JCP&L hides exact counts under 20.",
     stormcenter: "6c715f0e-bbec-465f-98cc-0b81623744be", view: "fcd7c23d-de37-4471-8ca3-37c3260f94fa",
     county: "MORRIS", towns: { "MORRISTOWN TOWN": "Morristown", "MORRIS TOWNSHIP": "Morris Township" },
     source: "https://outages-nj.firstenergycorp.com/",
   }),
   kubra({
-    id: "pseg", name: "PSE&G electric outages", label: "PSE&G", note: "PSE&G's electric map. Gas outages aren't published.",
+    id: "pseg", name: "Power outages, all of PSE&G", label: "PSE&G territory", rowLabel: ["Power, PSE&G", "neighboring utility"], order: 5, note: "PSE&G's electric map. Gas outages aren't published.",
     w: 0.4, wWhy: "PSE&G supplies your gas, not your power, so its electric outages only matter as a sign of a regional storm",
     stormcenter: "79d82478-c10a-4956-a045-89de3cda618c", view: "bdb7f5be-1c1a-46fa-862e-ebdf21851d2e", customers: 2336556,
     source: "https://outagecenter.pseg.com/external/default.html",
@@ -172,15 +175,16 @@ export default [
       else if (nj.length) step = 1;
       const drills = posts.length - real.length;
       const elsewhere = real.filter((p) => !NJ_ZONES.test(p.regions));
+      const info = real.length - nj.length - elsewhere.length;
       return {
-        name: "PJM grid emergency postings", label: "PJM grid", tile: "power", scope: "home", kind: "level",
-        note: "PJM runs the grid for New Jersey and 12 other states. Drill postings are ignored.",
+        name: "Regional grid, PJM emergency postings", label: "Regional grid", rowLabel: ["Regional grid", "PJM postings"], order: 4, tile: "power", scope: "home", kind: "level",
+        note: "PJM runs the grid for New Jersey and 12 other states. Drills are ignored. Routine alerts barely count; an emergency action that reaches New Jersey does.",
         source: "https://emergencyprocedures.pjm.com/ep/pages/dashboard.jsf",
-        steps: ["Normal", "Local warnings", "Alert", "Emergency"], sevs: [0, 5, 45, 90],
-        ladder: ["nothing posted for NJ zones", "warnings in JCP&L or PSE&G zones", "grid-wide alert", "emergency action or load shed"],
+        steps: ["Normal", "Local warnings", "Alert", "Emergency"], sevs: [0, 3, 15, 85],
+        ladder: ["nothing that counts for NJ", "warnings in JCP&L or PSE&G zones", "grid-wide alert", "emergency action or load shed"],
         step,
-        short: nj.length ? `${nj.length} for NJ` : drills ? "drill posted" : `${posts.length} posted`,
-        detail: `${posts.length} active postings: ${nj.length} touching New Jersey zones, ${elsewhere.length} elsewhere, ${drills} drill.`,
+        short: nj.length ? `${nj.length} for NJ` : "nothing for NJ",
+        detail: `${posts.length} active posting${posts.length === 1 ? "" : "s"}: ${nj.length} that count for New Jersey, ${info} for New Jersey that are informational only, ${elsewhere.length} elsewhere and ${drills} drill${drills === 1 ? "" : "s"}.`,
         items: nj.slice(0, 4).map((p) => `${p.priority}: ${p.type} (${p.regions})`),
         track: { step, posts: posts.length, nj: nj.length, drills },
       };
@@ -211,7 +215,8 @@ export default [
         if (!res.ok) continue;
         const text = strip(res.text);
         n.status = /boil[- ]water advisory/i.test(text) && !/no boil[- ]water advisory/i.test(text) ? "boil" : /in progress/i.test(text) ? "active" : /complete|restored/i.test(text) ? "done" : "posted";
-        n.where = clip(text.match(/at or near ([^.]{3,90})\./i)?.[1] ?? "", 80);
+        // A finished notice is reworded and drops the address, so the one already read is kept.
+        n.where = clip(text.match(/at or near ([^.]{3,90})\./i)?.[1] ?? "", 80) || n.where || "";
         // The notice's address is public. Its coordinates let each viewer's browser judge how close the work is.
         if (n.where && !n.pt && (n.tries ?? 0) < 3 && (n.status === "active" || n.status === "boil")) {
           n.tries = (n.tries ?? 0) + 1;
@@ -225,17 +230,22 @@ export default [
       const open = recent.map(([, n]) => n).filter((n) => n.status === "active" || n.status === "boil");
       const boil = open.some((n) => n.status === "boil"), nearMe = open.filter(local);
       const say = (n) => `${n.status === "boil" ? "Boil water" : n.status === "active" ? "In progress" : n.status === "done" ? "Completed" : "Posted"}: ${n.where || n.title.replace(/^Water Repairs in /i, "")} (${etDay(n.at)})`;
+      const isOpen = (n) => n.status === "active" || n.status === "boil";
+      const street = (n) => clip((n.where || n.title.replace(/^Water Repairs in /i, "")).replace(/\s+in\s+.*$/i, ""), 22);
       return {
-        name: "SMCMUA water notices", label: "SMCMUA water", tile: "power", scope: "home", kind: "level",
+        name: "Water notices, SMCMUA", label: "Water", rowLabel: ["Water", "SMCMUA notices"], order: 1, tile: "power", scope: "home", kind: "level",
         // "Across town" and "Near you" are only ever set in the browser, from a location saved on that device.
-        steps: ["No notice", "Other towns", "Across town", "In town", "Near you", "Boil water"], sevs: [0, 5, 10, 25, 40, 80],
+        steps: ["No notice", "Other towns", "Across town", "In town", "Near you", "Boil water"], sevs: [0, 2, 10, 25, 40, 80],
+        // Three segments: something nearby, something in town, a boil-water advisory.
+        meter: { of: 3, at: [0, 1, 1, 2, 2, 3] },
         ladder: ["nothing under way", "work in a neighboring town", "work in town, over 2 miles from you", "work in Morristown or Morris Township", "work within three-quarters of a mile of you", "boil-water advisory"],
         step: boil ? 5 : nearMe.length ? 3 : open.length ? 1 : 0,
         places: open.map((n) => ({ name: n.where || n.title.replace(/^Water Repairs in /i, ""), lat: n.pt?.[0], lon: n.pt?.[1], local: local(n) })),
         byDistance: { near: 0.75, far: 2, nearStep: 4, farStep: 2, townStep: 3, elseStep: 1, top: 5 },
-        short: open.length ? `${open.length} under way` : "none active",
+        short: nearMe.length === 1 ? street(nearMe[0]) : nearMe.length ? `${nearMe.length} repairs in town` : open.length ? `${open.length} in other towns` : "none active",
         detail: nearMe.length ? "A repair in town usually affects the streets around it for a few hours. Save your location at the bottom of the page and this is judged by distance instead of by town." : "",
-        items: recent.map(([, n]) => say(n)).slice(0, 6),
+        // Work still under way is listed first.
+        items: recent.map(([, n]) => n).sort((a, b) => isOpen(b) - isOpen(a) || b.at - a.at).map(say).slice(0, 6),
         note: "From the utility's alerts page and each notice it links to. Checked every 10 minutes.",
         source: "https://www.smcmua.org/alerts.htm",
         track: { open: open.length, local: nearMe.length, boil: boil ? 1 : 0 },
