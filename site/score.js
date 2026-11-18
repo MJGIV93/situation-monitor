@@ -14,11 +14,12 @@ export const TILES = [
   { id: "fuel", name: "Fuel" },
   { id: "hazard", name: "Hazards" },
   { id: "gov", name: "Advisories" },
+  { id: "mil", name: "Military" },
   { id: "cyber", name: "Cyber" },
 ];
 // Most a single domain can add to a score on its own, as a share of 100.
 export const WEIGHTS = {
-  national: { power: 0.7, net: 0.5, money: 0.5, air: 0.4, cyber: 0.4, hazard: 0.3, gov: 0.5, fuel: 0.3 },
+  national: { power: 0.7, net: 0.5, money: 0.5, air: 0.4, cyber: 0.4, hazard: 0.3, gov: 0.5, fuel: 0.3, mil: 0.3 },
   home: { power: 0.8, air: 0.6, net: 0.5, money: 0.5, hazard: 0.7, fuel: 0.4, gov: 0.5, cyber: 0.1 },
 };
 export const STATE_SEV = { ok: 0, minor: 20, major: 50, critical: 80 };
@@ -155,6 +156,29 @@ function trainCalc(f) {
   return r;
 }
 
+/* ---- airports ---- */
+const AIR_DELAY = [[0, 0], [15, 5], [30, 12], [45, 20], [60, 30], [90, 45], [120, 60]];
+export function airportPts(a) {
+  if (!a) return 0;
+  if (a.s === "closed") return 80;
+  if (a.s === "stop") return 55;
+  const base = interp(AIR_DELAY, num(a.min) || 0);
+  return a.s === "program" ? Math.max(base, 25) : a.s === "delays" ? Math.max(base, 5) : 0;
+}
+export function worstAirport(f) {
+  return arr(f.airports).slice().sort((a, b) => airportPts(b) - airportPts(a))[0] || null;
+}
+function airportCalc(f) {
+  const pts = arr(f.airports).map(airportPts).sort((a, b) => b - a);
+  const active = pts.length ? Math.min(90, pts[0] + 0.25 * pts.slice(1).reduce((a, b) => a + b, 0)) : 0;
+  const planned = num(f.planned) || 0;
+  const r = { sev: Math.max(active, planned), lines: [] };
+  r.lines.push("Each airport scores by its worst posted delay: 5 at 15 minutes, 12 at 30, 30 at an hour, 60 at two hours. A delay program scores at least 25, a ground stop 55, a closure 80.");
+  r.lines.push("The reading is the worst airport plus a quarter of the other two.");
+  if (planned && planned >= active) r.lines.push("Nothing is active, but the FAA's plan for today lists a possible program here, which scores " + planned + ".");
+  return r;
+}
+
 /* ---- alerts and other dated events ---- */
 const ET = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "numeric", hour12: false });
 function commuteHour(t) {
@@ -253,13 +277,14 @@ function eventCalc(f, now) {
 }
 
 /* ---- one rule per reading type ---- */
-const RULED = { price: 1, level: 1, status: 1, trains: 1, lines: 1, events: 1 };
+const RULED = { price: 1, level: 1, status: 1, trains: 1, lines: 1, events: 1, airports: 1 };
 export function calc(f, now = Date.now()) {
   const k = f.kind;
   let r = { sev: 0, lines: [] };
   if (k === "price") r = priceCalc(f);
   else if (k === "events") r = eventCalc(f, now);
   else if (k === "trains") r = trainCalc(f);
+  else if (k === "airports") r = airportCalc(f);
   else if (k === "level") {
     const steps = arr(f.steps), n = steps.length || 5, st = clamp(Math.round(num(f.step) || 0), 0, n - 1);
     const sv = arr(f.sevs).length === n ? f.sevs : n === 5 ? [0, 15, 40, 70, 95] : steps.map((_, i) => Math.round((95 * i) / Math.max(1, n - 1)));
@@ -279,7 +304,7 @@ export function calc(f, now = Date.now()) {
     r.lines.push("Scored against its average of " + commas(f.base, 1) + ". Points start at " + (tol === 2 ? "double the average" : Math.round((tol - 1) * 100) + "% above average") + " and reach 40 one average higher.");
   } else {
     r.sev = num(f.sev) || 0;
-    r.lines.push(r.sev ? "Scored by a fixed value set in the fetcher." : "Scores 0 while nothing is active.");
+    r.lines.push(r.sev ? "Scored by a fixed value set in the fetcher." : k === "count" ? "Not scored yet. It needs a few days of its own history to know what's normal." : "Scores 0 while nothing is active.");
   }
   if (!RULED[k] && !(k === "count" && num(f.base)) && num(f.sev) != null) r.sev = num(f.sev);
   r.sev = Math.round(clamp(r.sev || 0, 0, 100));
@@ -336,6 +361,12 @@ export function rowText(f, c, now = Date.now()) {
   if (k === "lines") {
     const hit = arr(f.lines).filter((l) => l && l.s && l.s !== "ok");
     return [hit.length ? hit.length + " affected" : "Clear", String(f.short || "")];
+  }
+  if (k === "airports") {
+    const w = worstAirport(f);
+    if (!w || w.s === "ok" || !w.s) return ["On time", f.planned ? "program possible later" : arr(f.airports).map((a) => a.id).join(" ")];
+    const what = w.s === "closed" ? "Closed" : w.s === "stop" ? "Ground stop" : w.min ? w.min + " min" : "Delays";
+    return [what, w.id + (w.s === "program" ? " delay program" : w.s === "delays" && w.why ? ", " + w.why : w.why ? ", " + w.why : "")];
   }
   if (k === "events") return [c.active ? c.active + " active" : "Clear", String(f.short || "")];
   if (k === "count") return [commas(num(f.num) || 0, 0), String(f.short || "")];

@@ -22,8 +22,9 @@ import fuel from "./adapters/fuel.mjs";
 import hazards from "./adapters/hazards.mjs";
 import advisories from "./adapters/advisories.mjs";
 import cyber from "./adapters/cyber.mjs";
+import military from "./adapters/military.mjs";
 
-export const ADAPTERS = [...utilities, ...travel, ...internet, ...money, ...fuel, ...hazards, ...advisories, ...cyber];
+export const ADAPTERS = [...utilities, ...travel, ...internet, ...money, ...fuel, ...hazards, ...advisories, ...military, ...cyber];
 
 const OUT = "out";
 const CONCURRENCY = 6;

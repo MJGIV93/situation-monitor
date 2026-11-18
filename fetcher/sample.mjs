@@ -16,16 +16,18 @@ const cboeHist = (s) => `https://cdn.cboe.com/api/global/delayed_quotes/charts/h
 const geo = { accept: "application/geo+json" };
 const gql = (query) => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }) });
 
+const day = (n) => new Date(Date.now() - n * 86400e3).toISOString().slice(0, 10);
 const LIST = [
-  ["mil-adsbfi", "https://opendata.adsb.fi/api/v2/mil"],
-  ["mil-adsblol", "https://api.adsb.lol/v2/mil"],
-  ["mil-airplaneslive", "https://api.airplanes.live/v2/mil"],
-  ["pizzint-home", "https://www.pizzint.watch/"],
-  ["pizzint-api", "https://www.pizzint.watch/api/dashboard-data"],
-  ["faa-status", "https://nasstatus.faa.gov/api/airport-status-information"],
-  ["faa-asws-ewr", "https://soa.smext.faa.gov/asws/api/airport/status/EWR"],
-  ["faa-events", "https://nasstatus.faa.gov/api/airport-events"],
-  ["faa-ops-plan", "https://nasstatus.faa.gov/api/operations-plan"],
+  ["tfr-list", "https://tfr.faa.gov/tfrapi/exportTfrList"],
+  ["gpsjam-manifest", "https://gpsjam.org/data/manifest.csv"],
+  ["gpsjam-day", `https://gpsjam.org/data/${day(2)}-h3_4.csv`],
+  ["eam-home", "https://eam.watch/"],
+  ["state-advisories", "https://travel.state.gov/_res/rss/TAsTWs.xml"],
+  ["gdelt-strikes", "https://api.gdeltproject.org/api/v2/doc/doc?query=(airstrike%20OR%20%22missile%20strike%22%20OR%20%22military%20strike%22)&mode=timelinevol&timespan=14d&format=json"],
+  ["cboe-ita", "https://cdn.cboe.com/api/global/delayed_quotes/quotes/ITA.json"],
+  ["usni-fleet", "https://news.usni.org/category/fleet-tracker/feed"],
+  ["squawk-7700", "https://opendata.adsb.fi/api/v2/sqk/7700"],
+  ["polymarket-geo", "https://gamma-api.polymarket.com/events?closed=false&tag_slug=geopolitics&limit=30&order=volume24hr&ascending=false"],
 ];
 
 const OUT = "samples";

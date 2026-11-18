@@ -139,6 +139,11 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: 30px; line-heig
 .bullets i { font-style: normal; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--b0); font-size: 11px; font-weight: 600; line-height: 15px; text-align: center; }
 .bullets i[data-s="delays"] { border-color: var(--b2); color: var(--b2); }
 .bullets i[data-s="suspended"] { border-color: var(--b3); color: var(--b3); }
+.ports { display: flex; gap: 3px; justify-content: flex-end; }
+.ports i { font-style: normal; font-size: 9.5px; font-weight: 600; line-height: 1.1; padding: 2px 3px; border: 1.5px solid var(--b0); border-radius: 3px; }
+.ports i[data-s="delays"] { border-color: var(--b1); color: var(--b1); }
+.ports i[data-s="program"] { border-color: var(--b2); color: var(--b2); }
+.ports i[data-s="stop"], .ports i[data-s="closed"] { border-color: var(--b3); color: var(--b3); }
 .lamp { height: 8px; border-radius: 1px; background: var(--c, var(--b0)); }
 .none { height: 1px; background: var(--line); }
 
@@ -281,6 +286,7 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: 30px; line-heig
     </details>
     <div class="foot">
       <details id="errs" hidden><summary></summary><ul id="errList"></ul></details>
+      <span>Military aircraft data from <a href="https://adsb.fi/" target="_blank" rel="noopener noreferrer">adsb.fi</a>. Pizza index from <a href="https://www.pizzint.watch/" target="_blank" rel="noopener noreferrer">PizzINT</a>.</span>
       <span>Built from public sources. Code and method: <a href="https://github.com/MJGIV93/situation-monitor" target="_blank" rel="noopener noreferrer">github.com/MJGIV93/situation-monitor</a></span>
     </div>
   </div>
@@ -454,6 +460,9 @@ function instrument(f, c) {
       if (di) box.appendChild(el("i", "gap"));
       arr(d && d.trains).slice(0, 3).forEach((t) => { const p = el("i"); p.setAttribute("data-s", String((t && t.s) || "ok")); box.appendChild(p); });
     });
+  } else if (k === "airports") {
+    box = el("div", "ports");
+    arr(f.airports).slice(0, 3).forEach((a) => { const p = el("i", null, String((a && a.id) || "")); p.setAttribute("data-s", String((a && a.s) || "ok")); box.appendChild(p); });
   } else if (k === "lines") {
     box = el("div", "bullets");
     arr(f.lines).slice(0, 4).forEach((l) => { const p = el("i", null, String((l && l.id) || "")); p.setAttribute("data-s", String((l && l.s) || "ok")); box.appendChild(p); });
@@ -565,6 +574,16 @@ function detail(f, c) {
       ll.appendChild(li);
     });
     box.appendChild(ll);
+  } else if (k === "airports") {
+    const al = el("ul", "tlist");
+    arr(f.airports).forEach((a) => {
+      const li = el("li");
+      li.appendChild(el("b", null, String(a.id || "") + (a.name && a.name !== a.id ? "  " + a.name : "")));
+      const what = a.s === "closed" ? "Closed" : a.s === "stop" ? "Ground stop" : a.s === "program" ? "Delay program" : a.s === "delays" ? "Delays" : "On time";
+      li.appendChild(el("span", null, what + (a.min ? ", " + a.min + " min" : "") + (a.why ? " (" + a.why + ")" : "") + (a.deicing ? ", deicing" : "")));
+      al.appendChild(li);
+    });
+    box.appendChild(al);
   } else if (k === "events") {
     const evs = arr(f.events);
     if (evs.length) {
