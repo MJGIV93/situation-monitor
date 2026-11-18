@@ -3,7 +3,7 @@ import { json, need, fetchOk, strip, clip, etClock } from "../lib/util.mjs";
 /* ---- FAA ---- */
 const FAA = "https://nasstatus.faa.gov/api";
 const FAA_STEPS = ["Clear", "Delays", "Delay programs", "Ground stops", "Nationwide stop"];
-const FAA_SEVS = [0, 5, 25, 55, 95];
+const FAA_SEVS = [0, 5, 15, 35, 95];
 const FAA_LADDER = ["nothing posted at the 30 major hubs", "delays at up to four hubs", "delay programs, or delays at five or more hubs", "ground stops at major hubs", "ground stops at twelve or more airports"];
 const HUBS = "ATL BOS BWI CLT DCA DEN DFW DTW EWR FLL HNL IAD IAH JFK LAS LAX LGA MCO MDW MEM MIA MSP ORD PHL PHX SAN SEA SFO SLC TPA".split(" ");
 const NYC = [["EWR", "Newark"], ["JFK", "JFK"], ["LGA", "LaGuardia"]];
@@ -138,6 +138,7 @@ export default [
         },
         {
           id: "faa-nyc", name: "Newark, JFK and LaGuardia", label: "NYC airports", tile: "air", scope: "home", kind: "airports",
+          w: 0.4, wWhy: "the airports only matter on days you fly",
           airports: nyc.map((a) => ({ id: a.id, name: a.name, s: a.s, min: a.min || undefined, why: a.why || undefined, until: a.until || undefined, deicing: a.deicing })),
           planned,
           items: nycPlan.map((e) => "Planned. " + planLine(e)),
@@ -182,7 +183,7 @@ export default [
           source: "https://www.njtransit.com/dv-to/Morristown",
         },
         {
-          ...shared, id: "njt-hob", name: "NJ Transit, Morristown and Hoboken", label: "Hoboken trains",
+          ...shared, id: "njt-hob", name: "NJ Transit, Morristown and Hoboken", label: "Hoboken trains", w: 0.5, wWhy: "Hoboken is your backup route",
           dirs: hoboken, track: tally(hoboken),
           note: "From the live departure boards. PATH covers Hoboken to 33rd St and has its own reading.",
           source: "https://www.njtransit.com/dv-to/Hoboken",
@@ -244,7 +245,7 @@ export default [
       const texts = open.map((i) => strip(String(i.incidentMessage?.subject ?? i.subject ?? i.title ?? i.message ?? i.preMessage ?? JSON.stringify(i)))).map((t) => clip(t, 180));
       const all = texts.join(" ");
       return {
-        name: "PATH", label: "PATH", tile: "air", scope: "home", kind: "status",
+        name: "PATH", label: "PATH", tile: "air", scope: "home", kind: "status", w: 0.5, wWhy: "PATH is your backup route",
         state: /suspend/i.test(all) ? "major" : open.length ? "minor" : "ok",
         short: `${open.length} incident${open.length === 1 ? "" : "s"}`,
         note: "From the Port Authority's incident feed. Your backup route across the Hudson.",

@@ -10,7 +10,7 @@ export async function statuspage(ctx, host) {
   const flagged = (j.components ?? []).filter((c) => c.status && c.status !== "operational" && c.status !== "under_maintenance" && !c.group);
   return { state: INDICATOR[j.status.indicator] ?? "minor", incidents, flagged, total: (j.components ?? []).length };
 }
-function statusDoc({ id, host, name, label, source, note = "" }) {
+function statusDoc({ id, host, name, label, source, note = "", w, wWhy }) {
   return {
     id,
     every: 10,
@@ -18,7 +18,7 @@ function statusDoc({ id, host, name, label, source, note = "" }) {
       const s = await statuspage(ctx, host);
       const n = s.incidents.length;
       return {
-        name, label, tile: "net", scope: "national", kind: "status", source,
+        name, label, tile: "net", scope: "national", kind: "status", source, w, wWhy,
         state: s.state,
         short: n ? `${n} incident${n > 1 ? "s" : ""}` : "no incidents",
         note: note || (s.flagged.length ? `${s.flagged.length} of ${s.total} components flagged.` : ""),
@@ -64,7 +64,7 @@ function ioda({ id, asn, entity = `asn/${asn}`, scope = "home", name, label, not
 }
 
 export default [
-  statusDoc({ id: "status-claude", host: "status.claude.com", name: "Claude status", label: "Claude", source: "https://status.claude.com/" }),
+  statusDoc({ id: "status-claude", host: "status.claude.com", name: "Claude status", label: "Claude", source: "https://status.claude.com/", w: 0.5, wWhy: "it's one company's service, not shared infrastructure" }),
   statusDoc({ id: "status-cloudflare", host: "www.cloudflarestatus.com", name: "Cloudflare status", label: "Cloudflare", source: "https://www.cloudflarestatus.com/" }),
   {
     id: "status-apple",
@@ -85,7 +85,7 @@ export default [
       const outages = events.filter((e) => /outage/i.test(e.type));
       const affected = new Set(events.flatMap((e) => [...e.services])).size;
       return {
-        name: "Apple system status", label: "Apple", tile: "net", scope: "national", kind: "status",
+        name: "Apple system status", label: "Apple", tile: "net", scope: "national", kind: "status", w: 0.6, wWhy: "it's one company's services",
         state: outages.length && affected >= 10 ? "critical" : outages.length ? "major" : events.length ? "minor" : "ok",
         short: `${events.length} open`,
         track: { open: events.length, outages: outages.length, services: affected },

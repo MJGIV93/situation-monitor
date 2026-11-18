@@ -82,7 +82,7 @@ export function price(id, base, load) {
 export default [
   price("vix", {
     name: "VIX (market fear gauge)", label: "VIX", fmt: "num2", bad: "high", chg: "abs",
-    abs: { x: [15, 20, 30, 40, 60], s: [0, 15, 50, 80, 100] },
+    abs: { x: [15, 20, 25, 30, 40, 60], s: [0, 8, 20, 40, 70, 100] },
     note: "How much traders expect stocks to swing over the next month. Delayed 15 minutes.",
     source: "https://www.cboe.com/tradable_products/vix/",
   }, (ctx) => cboe(ctx, "_VIX")),
@@ -92,17 +92,17 @@ export default [
     source: "https://www.cboe.com/us/indices/dashboard/spx/",
   }, (ctx) => cboe(ctx, "_SPX")),
   price("ust10", {
-    name: "10-year Treasury yield", label: "10-yr Treasury", fmt: "pct2", bad: "high", chg: "abs", cap: 30,
+    name: "10-year Treasury yield", label: "10-yr Treasury", fmt: "pct2", bad: "high", chg: "abs", cap: 20,
     note: "Rising yields squeeze bank balance sheets and raise borrowing costs. Delayed 15 minutes.",
     source: "https://www.cboe.com/us/indices/dashboard/tnx/",
   }, (ctx) => cboe(ctx, "_TNX", 0.1)),
   price("bitcoin", {
-    name: "Bitcoin", label: "Bitcoin", fmt: "usdk", bad: "low", chg: "pct", cap: 30,
+    name: "Bitcoin", label: "Bitcoin", fmt: "usdk", bad: "low", chg: "pct", cap: 15,
     note: "Counted as a gauge of risk appetite. Live from Coinbase.",
     source: "https://www.coinbase.com/price/bitcoin",
   }, async (ctx) => ({ ...(await coinbase(ctx, "BTC-USD")), perWeek: 7 })),
   price("gold", {
-    name: "Gold", label: "Gold", fmt: "usd0", bad: "both", chg: "pct", cap: 30,
+    name: "Gold", label: "Gold", fmt: "usd0", bad: "both", chg: "pct", cap: 15,
     note: "A spike means a flight to safety. A deep slide while stocks and Bitcoin also fall can mean investors are selling everything to raise cash. Priced from PAXG, a token backed by one ounce of gold that trades around the clock and tracks spot within about half a percent.",
     source: "https://www.coinbase.com/price/pax-gold",
   }, async (ctx) => ({ ...(await coinbase(ctx, "PAXG-USD")), perWeek: 7 })),

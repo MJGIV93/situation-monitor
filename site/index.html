@@ -82,8 +82,7 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: 26px; line-heig
 .chips { display: flex; gap: 8px; }
 .chip { display: inline-flex; align-items: baseline; gap: 7px; padding: 4px 9px; border: 1px solid var(--line); border-radius: 2px; background: var(--surface); }
 .chip i { font-style: normal; font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--dim); }
-.chip b { font-family: var(--f-display); font-weight: 600; font-size: 21px; line-height: 1; color: var(--c, var(--fg)); }
-.chip em { font-style: normal; font-size: 12px; color: var(--c, var(--dim)); }
+.chip b { font-family: var(--f-display); font-weight: 600; font-size: 17px; line-height: 1.2; letter-spacing: 0.05em; text-transform: uppercase; color: var(--c, var(--fg)); }
 .clocks { display: flex; gap: 14px; margin-left: auto; font-size: 14px; color: var(--dim); white-space: nowrap; }
 .clocks b { font-weight: 500; color: var(--fg); }
 .brand { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
@@ -108,12 +107,13 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: 26px; line-heig
 .gauge .needle { stroke: var(--fg); stroke-width: 3.5; stroke-linecap: round; transform-box: view-box; transform-origin: 100px 100px; transition: transform 0.8s cubic-bezier(0.3, 1.3, 0.5, 1); }
 .gauge .hub { fill: var(--fg); }
 .gauge.off .needle, .gauge.off .hub { opacity: 0.25; }
-.gauge .read { text-align: center; font-family: var(--f-display); font-weight: 600; font-size: 52px; line-height: 1; }
+.gauge .read { display: none; }
 .verdict { text-align: center; display: flex; flex-direction: column; gap: 1px; }
-.verdict .bname { font-family: var(--f-display); font-weight: 600; font-size: 17px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--c, var(--dim)); }
+.verdict .bname { font-family: var(--f-display); font-weight: 600; font-size: 34px; line-height: 1.05; letter-spacing: 0.04em; text-transform: uppercase; color: var(--c, var(--dim)); margin-top: -6px; }
 .drivers { border-top: 1px solid var(--line); padding-top: 8px; font-size: 13px; display: flex; flex-direction: column; gap: 3px; }
 .drivers li { display: flex; justify-content: space-between; gap: 8px; color: var(--dim); }
-.drivers b { font-weight: 500; color: var(--fg); }
+.drivers b { flex: none; width: 46%; height: 6px; align-self: center; border-radius: 1px; background: var(--line); overflow: hidden; }
+.drivers b i { display: block; height: 100%; background: var(--c, var(--fg)); }
 .spark { display: block; width: 100%; height: 30px; color: var(--c, var(--dim)); }
 .sparkbox { border-top: 1px solid var(--line); padding-top: 8px; color: var(--c, var(--dim)); }
 .sparkbox:empty { display: none; }
@@ -278,7 +278,7 @@ body.wall .tail, body.wall .how { display: none; }
   .bar { position: sticky; top: 0; z-index: 10; }
   .wrap { padding-block: 14px 36px; }
   .dial { padding: 16px; }
-  .gauge .read { font-size: 64px; }
+  .verdict .bname { font-size: 40px; }
   .board > .signals, .board > .latest { grid-column: auto; }
   .domlist { display: block; columns: 4 330px; column-gap: 8px; }
   .dom { break-inside: avoid; margin: 0 0 8px; }
@@ -303,8 +303,8 @@ body.wall .tail, body.wall .how { display: none; }
       <span class="loc">Morristown, NJ <span aria-hidden="true">·</span> 40.80° N, 74.48° W</span>
     </div>
     <div class="chips">
-      <span class="chip" id="chipNat"><i>USA</i><b>–</b><em></em></span>
-      <span class="chip" id="chipHome"><i>Home</i><b>–</b><em></em></span>
+      <span class="chip" id="chipNat"><i>USA</i><b>–</b></span>
+      <span class="chip" id="chipHome"><i>Home</i><b>–</b></span>
     </div>
     <div class="status"><span class="dot" id="dot"></span><span><span id="statusText">Connecting</span><span id="nextText"></span></span></div>
     <div class="clocks"><span><b id="clock"></b></span><span><b id="zulu"></b></span></div>
@@ -348,7 +348,7 @@ body.wall .tail, body.wall .how { display: none; }
     <details class="how">
       <summary>How the scores work</summary>
       <p class="small">Both scores run 0 to 100 and higher is worse. Every reading carries a signal from 0 to 100, which is how much concern it adds, not how big its number is. A falling stock index or a train running late has a high signal. Each reading shows its rule and arithmetic when opened. A domain takes its worst reading plus a fifth of the next two. Domains then stack by weight, so several unrelated problems at once raise a score far more than one alone. The points under each dial show how far that score would fall if the domain went quiet.</p>
-      <p class="small">0 to 9 is quiet, 10 to 24 watch, 25 to 49 elevated, 50 to 74 disrupted, 75 and up severe.</p>
+      <p class="small">The dials show a band and a needle, not a number. Behind them, 0 to 9 is quiet, 10 to 24 watch, 25 to 49 elevated, 50 to 74 disrupted, 75 and up severe. Hover over a dial to see its exact score.</p>
       <p class="small legendrow"><span><i class="lt"></i>Checked and fine</span><span data-band="2"><i class="lt" style="background: var(--c)"></i>Active, in its band color</span><span><i class="lt ns"></i>Not scored: context, or still building a baseline</span><span><i class="lt dead"></i>Source stale or not answering</span></p>
       <p class="small">Readings refresh every 10 minutes, and slower sources hourly. If a source stops answering, its last reading stays up. It is dimmed after 3 hours and stops counting after 24.</p>
     </details>
@@ -476,7 +476,7 @@ function renderDial(id, scope) {
   setGauge(box, r.score);
   if (r.score == null) {
     box.removeAttribute("data-band");
-    box.querySelector(".read").textContent = "–";
+    box.querySelector(".gauge").removeAttribute("title");
     box.querySelector(".bname").textContent = "No signal";
     box.querySelector(".line").textContent = !state.loaded ? "Waiting for the first reading." : r.total ? "No reading in the past 24 hours." : "No readings yet.";
     drivers.hidden = true;
@@ -484,7 +484,9 @@ function renderDial(id, scope) {
   }
   const b = band(r.score);
   box.setAttribute("data-band", b);
-  box.querySelector(".read").textContent = r.score;
+  // The number stays behind the needle: it's in the tooltip and for screen readers, not on the face.
+  box.querySelector(".gauge").title = "Score " + r.score + " of 100";
+  box.setAttribute("aria-label", (scope === "home" ? "Home" : "USA") + ": " + BANDS[b] + ", score " + r.score + " of 100");
   box.querySelector(".bname").textContent = BANDS[b];
   box.querySelector(".line").textContent = LINES[b];
   drivers.hidden = false;
@@ -492,7 +494,11 @@ function renderDial(id, scope) {
     r.parts.slice(0, 3).forEach((p) => {
       const li = el("li");
       li.appendChild(el("span", null, tileName(p.id)));
-      li.appendChild(el("b", null, (p.pts < 10 ? p.pts.toFixed(1) : Math.round(p.pts)) + " pts"));
+      const bar = el("b"), fill = el("i");
+      fill.style.width = Math.max(4, Math.round((p.pts / Math.max(r.parts[0].pts, 1)) * 100)) + "%";
+      bar.title = "Adds about " + (p.pts < 10 ? p.pts.toFixed(1) : Math.round(p.pts)) + " points";
+      bar.appendChild(fill);
+      li.appendChild(bar);
       drivers.appendChild(li);
     });
   } else {
@@ -501,7 +507,7 @@ function renderDial(id, scope) {
   const before = hourAgo(scope);
   if (before != null) {
     const diff = r.score - before;
-    box.querySelector(".delta").textContent = diff === 0 ? "No change in the past hour" : signed(diff, Math.abs(diff)) + " in the past hour";
+    box.querySelector(".delta").textContent = diff >= 3 ? "Rising over the past hour" : diff <= -3 ? "Easing over the past hour" : "Steady over the past hour";
   }
   renderTimeline(sparkbox, scope);
 }
@@ -723,9 +729,12 @@ function renderTimeline(host, scope) {
   const x = (t) => ((t - start) / (end - start)) * 1000, y = (v) => 60 - (v / top) * 54;
   const box = el("div", "tchart");
   const svg = svgEl("svg", null, { viewBox: "0 0 1000 66", preserveAspectRatio: "none", role: "img", "aria-label": "Score over the past day" });
-  [10, 25, 50, 75].filter((v) => v < top).forEach((v) => {
+  let lastLabel = 1e9;
+  [75, 50, 25, 10].filter((v) => v < top).forEach((v) => {
     svg.appendChild(svgEl("path", null, { d: "M0 " + y(v).toFixed(1) + " L1000 " + y(v).toFixed(1), fill: "none", stroke: "var(--line)", "stroke-width": "1", "vector-effect": "non-scaling-stroke" }));
-    const lab = el("span", "ylab", String(v));
+    if (Math.abs(lastLabel - y(v)) < 13) return; // too close to the label above it
+    lastLabel = y(v);
+    const lab = el("span", "ylab", v === 10 ? "Watch" : v === 25 ? "Elevated" : v === 50 ? "Disrupted" : "Severe");
     lab.style.top = ((y(v) / 66) * 100).toFixed(1) + "%";
     box.appendChild(lab);
   });
@@ -805,9 +814,10 @@ function panelExtras(f, c) {
     const part = now.parts.find((p) => p.id === f.tile);
     if (now.score != null && without.score != null) {
       const diff = now.score - without.score;
+      const moves = band(now.score) !== band(without.score);
       s.appendChild(el("div", null, diff > 0
-        ? scopeName + " is at " + now.score + ". Without this reading it would be " + without.score + "."
-        : "It isn't adding to the " + scopeName + " score right now, which is " + now.score + "."));
+        ? "This reading adds " + diff + (diff === 1 ? " point" : " points") + " to the " + scopeName + " dial's 100-point scale." + (moves ? " Without it, " + scopeName + " would read " + BANDS[band(without.score)] + "." : "")
+        : "It isn't moving the " + scopeName + " dial right now."));
       s.appendChild(el("div", "small", tileName(f.tile) + " as a whole adds " + (part ? (part.pts < 10 ? part.pts.toFixed(1) : Math.round(part.pts)) : 0) + " points."));
       out.push(s);
     }
@@ -900,13 +910,13 @@ function renderStatus() {
   [["chipNat", "national"], ["chipHome", "home"]].forEach(([id, scope]) => {
     const chip = $(id), r = dial(state.feeds, scope);
     scores[scope] = r.score;
-    if (r.score == null) { chip.removeAttribute("data-band"); chip.querySelector("b").textContent = "–"; chip.querySelector("em").textContent = ""; return; }
+    if (r.score == null) { chip.removeAttribute("data-band"); chip.querySelector("b").textContent = "–"; return; }
     chip.setAttribute("data-band", band(r.score));
-    chip.querySelector("b").textContent = r.score;
-    chip.querySelector("em").textContent = BANDS[band(r.score)];
+    chip.title = "Score " + r.score + " of 100";
+    chip.querySelector("b").textContent = BANDS[band(r.score)];
   });
   if (scores.national != null) {
-    document.title = "USA " + scores.national + " · Home " + (scores.home == null ? "–" : scores.home) + " | Situation Monitor";
+    document.title = "USA " + BANDS[band(scores.national)] + " · Home " + (scores.home == null ? "–" : BANDS[band(scores.home)]) + " | Situation Monitor";
     setIcon(band(scores.national), scores.home == null ? 0 : band(scores.home));
   }
 

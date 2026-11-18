@@ -22,7 +22,7 @@ export const WEIGHTS = {
   national: { power: 0.7, net: 0.5, money: 0.5, air: 0.4, cyber: 0.4, hazard: 0.3, gov: 0.5, fuel: 0.3, mil: 0.3 },
   home: { power: 0.8, air: 0.6, net: 0.5, money: 0.5, hazard: 0.7, fuel: 0.4, gov: 0.5, cyber: 0.1 },
 };
-export const STATE_SEV = { ok: 0, minor: 20, major: 50, critical: 80 };
+export const STATE_SEV = { ok: 0, minor: 10, major: 40, critical: 80 };
 export const STATE_WORD = { ok: "OK", minor: "Minor", major: "Major", critical: "Critical" };
 // Move size in multiples of a large move for that series -> points.
 export const CURVE = [[0, 0], [0.5, 5], [1, 20], [2, 50], [4, 90], [6, 100]];
@@ -250,7 +250,7 @@ const EVENT_RULES = {
     return { pts, why: tier + " " + base + (far ? ", at 60% until 6 hours before it starts" : "") + (commute ? ", +10 for a weekday commute" : "") };
   },
   town(e, now) {
-    const base = e.urgent ? 80 : e.tier === "alert" ? 55 : e.tier === "advisory" ? 20 : 0;
+    const base = e.urgent ? 80 : e.tier === "alert" ? 55 : e.tier === "advisory" ? 12 : 0;
     const k = fade(e.at, now);
     return { pts: base * k, why: (e.urgent ? "urgent wording 80" : (e.tier || "notice") + " " + base) + (k === 1 ? "" : k ? ", halved after 6 hours" : ", over 24 hours old") };
   },
@@ -273,7 +273,7 @@ const EVENT_RULES = {
     return { pts: base * k, why: (e.type || "bulletin") + " " + base + (k < 1 ? ", halved because it doesn't name the New York area" : "") };
   },
   cyberAlert(e, now) {
-    const base = e.level === "directive" ? 50 : e.level === "exploited" ? 30 : 15;
+    const base = e.level === "directive" ? 50 : e.level === "exploited" ? 30 : 8;
     const k = fade(e.at, now, 72, 168);
     return { pts: base * k, why: (e.level === "directive" ? "emergency directive" : e.level === "exploited" ? "active exploitation" : "patch alert") + " " + base + (k === 1 ? "" : k ? ", halved after 3 days" : ", over a week old") };
   },
@@ -292,11 +292,11 @@ const EVENT_RULES = {
 };
 const EVENT_NOTES = {
   weather: "Scored by alert type: statement 5, advisory 15, watch 30, warning 55, high-end warning 80, emergency 95. The highest active alert counts.",
-  town: "Community notices score 0, advisories 20, alerts 55, and 80 for wording like boil water, evacuate or shelter in place. A notice fades after 6 hours and drops off after 24.",
+  town: "Community notices score 0, advisories 12, alerts 55, and 80 for wording like boil water, evacuate or shelter in place. A notice fades after 6 hours and drops off after 24.",
   quakeHome: "Scored by magnitude and distance from Morristown. Within 60 miles: 10 at magnitude 2.5, 30 at 3.5, 55 at 4.5, 85 at 5.5.",
   quakeUS: "Only US quakes count: 25 at magnitude 6, 60 at 7, more if USGS rates the impact orange or red.",
   ntas: "A bulletin scores 20, an Elevated alert 60, an Imminent alert 90.",
-  cyberAlert: "A patch alert scores 15, an alert about active exploitation 30, an emergency directive 50. Each fades after 3 days and drops off after 7.",
+  cyberAlert: "A patch alert scores 8, an alert about active exploitation 30, an emergency directive 50. Each fades after 3 days and drops off after 7.",
   vip: "A VIP flight restriction over the New York area scores 10 on the day and the day before.",
   travel: "A new or reissued Level 4 advisory scores 20, a Level 3 scores 5. Each fades after 3 days and drops off after 7.",
   femaHome: "Scores 40 while a federal declaration from the past 30 days covers Morris County or Manhattan.",
@@ -331,7 +331,7 @@ export function calc(f, now = Date.now()) {
     r.why = "Its level is " + String(steps[st] || st + 1) + (arr(f.ladder)[st] ? " (" + f.ladder[st] + ")." : ".");
   } else if (k === "status") {
     r.sev = STATE_SEV[f.state] || 0;
-    r.lines.push("Status pages score 0 for OK, 20 for minor, 50 for major and 80 for critical.");
+    r.lines.push("Status pages score 0 for OK, 10 for minor, 40 for major and 80 for critical.");
     r.why = r.sev ? "It reports a " + f.state + " problem." : "It reports no problems.";
   } else if (k === "lines") {
     let d = 0, su = 0;
@@ -352,6 +352,12 @@ export function calc(f, now = Date.now()) {
     if (k === "count") r.unscored = true;
   }
   if (!RULED[k] && !(k === "count" && num(f.base)) && num(f.sev) != null) r.sev = num(f.sev);
+  // A reading that only touches you indirectly counts at a fraction of its signal.
+  const w = num(f.w);
+  if (w != null && w < 1 && r.sev > 0) {
+    r.lines.push("Counted at " + Math.round(w * 100) + "% of that, because " + (f.wWhy || "it affects you indirectly") + ".");
+    r.sev *= w;
+  }
   r.sev = Math.round(clamp(r.sev || 0, 0, 100));
   return r;
 }

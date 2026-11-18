@@ -7,7 +7,7 @@ const shareStep = (p) => (p >= 10 ? 4 : p >= 2 ? 3 : p >= 0.5 ? 2 : p >= 0.1 ? 1
 // Kubra hosts both utilities' outage maps. The data folder changes every few
 // minutes, and each map publishes several summary files for different areas,
 // so the one matching the utility's whole customer base is picked by size.
-function kubra({ id, name, label, note, stormcenter, view, customers, source }) {
+function kubra({ id, name, label, note, stormcenter, view, customers, source, w, wWhy }) {
   return {
     id,
     every: 10,
@@ -31,7 +31,7 @@ function kubra({ id, name, label, note, stormcenter, view, customers, source }) 
       ctx.cache.summary = best.n;
       const out = best.t.total_cust_a?.val ?? 0, served = best.t.total_cust_s, share = (out / served) * 100;
       return {
-        name, label, tile: "power", scope: "home", kind: "level", note, source,
+        name, label, tile: "power", scope: "home", kind: "level", note, source, w, wWhy,
         steps: SHARE_STEPS, ladder: SHARE_LADDER, step: shareStep(share),
         short: `${short(out)} out`,
         detail: `${commas(out)} of ${commas(served)} customers without power, or ${pct(share)}, across ${commas(best.t.total_outages ?? 0)} outages.`,
@@ -91,7 +91,8 @@ export default [
     source: "https://outages-nj.firstenergycorp.com/",
   }),
   kubra({
-    id: "pseg", name: "PSE&G outages", label: "PSE&G", note: "PSE&G's electric map. Gas outages aren't published.",
+    id: "pseg", name: "PSE&G electric outages", label: "PSE&G", note: "PSE&G's electric map. Gas outages aren't published.",
+    w: 0.4, wWhy: "PSE&G supplies your gas, not your power, so its electric outages only matter as a sign of a regional storm",
     stormcenter: "79d82478-c10a-4956-a045-89de3cda618c", view: "bdb7f5be-1c1a-46fa-862e-ebdf21851d2e", customers: 2336556,
     source: "https://outagecenter.pseg.com/external/default.html",
   }),
@@ -167,11 +168,14 @@ export default [
       const boil = open.some((n) => n.status === "boil"), nearMe = open.filter(local);
       const say = (n) => `${n.status === "boil" ? "Boil water" : n.status === "active" ? "In progress" : n.status === "done" ? "Completed" : "Posted"}: ${n.where || n.title.replace(/^Water Repairs in /i, "")} (${etDay(n.at)})`;
       return {
-        name: "SMCMUA water notices", label: "SMCMUA water", tile: "power", scope: "home", kind: "status",
-        state: boil ? "critical" : nearMe.length ? "major" : open.length ? "minor" : "ok",
-        short: boil ? "boil water" : nearMe.length ? "repairs near you" : open.length ? `${open.length} repair${open.length > 1 ? "s" : ""} nearby` : "no active notice",
+        name: "SMCMUA water notices", label: "SMCMUA water", tile: "power", scope: "home", kind: "level",
+        steps: ["No notice", "Repair nearby", "Repair in town", "Boil water"], sevs: [0, 5, 25, 80],
+        ladder: ["nothing under way", "work in a neighboring town", "work in Morristown or Morris Township", "boil-water advisory"],
+        step: boil ? 3 : nearMe.length ? 2 : open.length ? 1 : 0,
+        short: open.length ? `${open.length} under way` : "none active",
+        detail: nearMe.length ? "A repair in town usually affects a few streets for a few hours. Check the notice for yours." : "",
         items: recent.map(([, n]) => say(n)).slice(0, 6),
-        note: "From the utility's alerts page and each notice it links to. A repair under way in Morristown or Morris Township counts as major, one in a neighboring town as minor, and a boil-water advisory as critical. Checked every 10 minutes.",
+        note: "From the utility's alerts page and each notice it links to. Checked every 10 minutes.",
         source: "https://www.smcmua.org/alerts.htm",
         track: { open: open.length, local: nearMe.length, boil: boil ? 1 : 0 },
       };

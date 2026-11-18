@@ -112,7 +112,7 @@ export async function runOnce({ get = httpGet, now = Date.now(), state = {}, eve
     const b = band(s);
     seen["dial:" + scope] = { b, sev: s };
     const was = prev["dial:" + scope];
-    if (was && was.b !== b) entries.push({ t: iso, id: "dial:" + scope, dir: b > was.b ? "up" : "down", text: `${label} moved to ${BANDS[b]} at ${s}, from ${was.sev}.` });
+    if (was && was.b !== b) entries.push({ t: iso, id: "dial:" + scope, dir: b > was.b ? "up" : "down", text: `${label} moved to ${BANDS[b]}, from ${BANDS[was.b]}.` });
   }
   if (firstRun) entries.push({ t: iso, id: "start", dir: "", text: `Monitoring started at ${etClock(now)} ET with ${feeds.length} readings.` });
   state.prev = seen;
