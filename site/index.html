@@ -185,7 +185,11 @@ body.wall .tail, body.wall .how { display: none; }
 .row { appearance: none; -webkit-appearance: none; background: none; border: 0; margin: 0; font: inherit; color: inherit; width: 100%; text-align: left; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) 76px 100px; column-gap: 10px; align-items: center; padding: 5px 0; min-height: 40px; }
 @media (pointer: coarse) { .row { min-height: 44px; } }
 .row:focus-visible, .pclose:focus-visible, a:focus-visible, .latest summary:focus-visible, .how summary:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
-.rk { font-size: 13.5px; color: var(--dim); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk { display: flex; align-items: center; min-width: 0; font-size: 13.5px; line-height: 1.2; color: var(--dim); }
+.rk .lt, .rk i { flex: none; }
+/* A long name wraps to a second line instead of being cut off. */
+.rk .rn { min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.rk .rn small { display: block; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rk i { font-style: normal; font-size: 10px; font-weight: 600; letter-spacing: 0.06em; margin-right: 6px; padding: 1px 4px; border: 1px solid var(--line); border-radius: 3px; }
 .rv { text-align: right; min-width: 0; }
 .rv b { display: block; font-weight: 600; font-size: 16px; line-height: 1.15; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -842,7 +846,10 @@ function row(f, tag) {
   s.setAttribute("aria-expanded", on ? "true" : "false");
   k.appendChild(el("span", "lt" + (!ok || !fresh(f) ? " dead" : c.unscored ? " ns" : "")));
   if (tag) k.appendChild(el("i", null, tag));
-  k.appendChild(document.createTextNode(String(f.label || f.name || "Reading")));
+  // A route is named on two lines, where it's from and where it's going.
+  const two = arr(f.rowLabel).length === 2, rn = el("span", "rn", String(two ? f.rowLabel[0] : f.label || f.name || "Reading"));
+  if (two) { rn.appendChild(document.createTextNode(" ")); rn.appendChild(el("small", null, String(f.rowLabel[1]))); }
+  k.appendChild(rn);
   k.title = String(f.name || "");
   s.appendChild(k);
   s.appendChild(ok ? instrument(f, c) : el("div", "none"));
@@ -980,7 +987,7 @@ function panelExtras(f, c) {
     }
   }
 
-  const sibs = state.feeds.filter((x) => x.tile === f.tile && x.scope === f.scope && x.id !== f.id).sort((a, b) => sev(b) - sev(a) || String(a.label).localeCompare(String(b.label)));
+  const sibs = state.feeds.filter((x) => x.tile === f.tile && x.scope === f.scope && x.id !== f.id).sort((a, b) => sev(b) - sev(a) || (num(a.order) || 50) - (num(b.order) || 50) || String(a.label).localeCompare(String(b.label)));
   if (sibs.length) {
     const s = section("Also in " + tileName(f.tile) + ", " + scopeName);
     sibs.forEach((x) => {
@@ -1081,7 +1088,7 @@ function renderDomains() {
     head.appendChild(el("h3", "ctitle", t.name));
     card.appendChild(head);
     SCOPES.forEach((sc) => {
-      const gf = feeds.filter((f) => f.scope === sc[0]).sort((a, b) => live(b) - live(a) || sev(b) - sev(a) || String(a.label).localeCompare(String(b.label)));
+      const gf = feeds.filter((f) => f.scope === sc[0]).sort((a, b) => live(b) - live(a) || sev(b) - sev(a) || (num(a.order) || 50) - (num(b.order) || 50) || String(a.label).localeCompare(String(b.label)));
       if (!gf.length) return;
       const gl = gf.filter((f) => live(f)), g = el("div", "grp"), gs = el("b", null, "–");
       if (gl.length) {

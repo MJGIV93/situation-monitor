@@ -127,7 +127,7 @@ export default [
       const source = "https://nasstatus.faa.gov/";
       return [
         {
-          id: "faa-nas", name: "FAA national airspace", label: "FAA, national", tile: "air", scope: "national", kind: "level",
+          id: "faa-nas", name: "US airports, FAA delays and ground stops", label: "US airports", tile: "air", scope: "national", kind: "level",
           steps: FAA_STEPS, sevs: FAA_SEVS, ladder: FAA_LADDER, step,
           short: `${hubs.length} of ${HUBS.length} hubs`,
           detail: all.length ? `${hubs.length} of the ${HUBS.length} major hubs have something posted, and ${all.length - hubs.length} smaller airports.` : "No delays, delay programs or ground stops posted anywhere.",
@@ -137,7 +137,7 @@ export default [
           track: { step, hubs: hubs.length, airports: all.length, stops, programs: count(all, "program"), worst: Math.max(0, ...all.map(([, r]) => r.min)) },
         },
         {
-          id: "faa-nyc", name: "Newark, JFK and LaGuardia", label: "NYC airports", tile: "air", scope: "home", kind: "airports",
+          id: "faa-nyc", name: "Newark, JFK and LaGuardia", label: "NYC airports", order: 6, tile: "air", scope: "home", kind: "airports",
           w: 0.4, wWhy: "the airports only matter on days you fly",
           airports: nyc.map((a) => ({ id: a.id, name: a.name, s: a.s, min: a.min || undefined, why: a.why || undefined, until: a.until || undefined, deicing: a.deicing })),
           planned,
@@ -177,22 +177,23 @@ export default [
       const necWorst = nec.suspended ? "critical" : nec.delay >= 30 ? "major" : nec.lineWide.length ? "minor" : "ok";
       return [
         {
-          ...shared, id: "njt-me", name: "NJ Transit, Morristown Line to Penn Station", label: "NJT, Penn",
+          ...shared, id: "njt-me", name: "Morristown to Penn Station, NJ Transit", label: "Morristown / Penn", rowLabel: ["Morristown", "to Penn Station"], order: 1,
           dirs: penn, track: tally(penn),
           note: "The next three trains each way, from NJ Transit's live departure boards, plus any alert for the whole line." + (banner ? " Station notice: " + clip(banner, 160) : ""),
           source: "https://www.njtransit.com/dv-to/Morristown",
         },
         {
-          ...shared, id: "njt-hob", name: "NJ Transit, Morristown Line to Hoboken", label: "NJT, Hoboken", w: 0.5, wWhy: "Hoboken is your backup route",
+          ...shared, id: "njt-hob", name: "Morristown to Hoboken, NJ Transit", label: "Morristown / Hoboken", rowLabel: ["Morristown", "to Hoboken"], order: 2, w: 0.5, wWhy: "Hoboken is your backup route",
           dirs: hoboken, track: tally(hoboken),
           note: "The next three trains each way, from NJ Transit's live departure boards. PATH covers Hoboken to 33rd Street and has its own reading.",
           source: "https://www.njtransit.com/dv-to/Hoboken",
         },
         {
-          id: "njt-nec", name: "NJ Transit, Northeast Corridor", label: "NJT, Corridor", tile: "air", scope: "home", kind: "status",
+          id: "njt-nec", name: "Northeast Corridor, NJ Transit", label: "NE Corridor", rowLabel: ["NE Corridor", "via Penn tunnels"], order: 5, tile: "air", scope: "home", kind: "status",
+          w: 0.5, wWhy: "it isn't your line, and matters only when its trouble reaches the shared Penn Station tunnels",
           state: necWorst,
           short: nec.suspended ? "suspended" : nec.delay ? `${nec.delay} min delays` : nec.lineWide.length ? `${nec.lineWide.length} alert${nec.lineWide.length > 1 ? "s" : ""}` : "no alerts",
-          note: "From NJ Transit's line alerts. The Northeast Corridor shares the Penn Station tunnels with the Morristown Line, so trouble here usually reaches it.",
+          note: "A neighboring line, from NJ Transit's line alerts. It shares the Penn Station tunnels with the Morristown Line, so serious trouble here usually reaches your trains.",
           items: nec.live.slice(0, 3).map((m) => clip(m, 180)),
           track: { alerts: nec.live.length, lineWide: nec.lineWide.length, delay: nec.delay, suspended: nec.suspended ? 1 : 0 },
           source: "https://www.njtransit.com/travel-alerts-to?tab=Rail&line=NEC",
@@ -225,7 +226,7 @@ export default [
       }
       const hit = MY_LINES.filter((l) => state[l].s !== "ok");
       return {
-        name: "NYC subway, 2, 3, A and C lines", label: "Subway", tile: "air", scope: "home", kind: "lines",
+        name: "NYC subway, 2, 3, A and C lines", label: "Subway", rowLabel: ["Subway", "from Penn Station"], order: 3, tile: "air", scope: "home", kind: "lines",
         lines: MY_LINES.map((id) => ({ id, s: state[id].s })),
         short: `${citywide} citywide`,
         track: { citywide, ...Object.fromEntries(MY_LINES.map((l) => [l, state[l].s === "suspended" ? 2 : state[l].s === "delays" ? 1 : 0])) },
@@ -245,7 +246,7 @@ export default [
       const texts = open.map((i) => strip(String(i.incidentMessage?.subject ?? i.subject ?? i.title ?? i.message ?? i.preMessage ?? JSON.stringify(i)))).map((t) => clip(t, 180));
       const all = texts.join(" ");
       return {
-        name: "PATH", label: "PATH", tile: "air", scope: "home", kind: "status", w: 0.5, wWhy: "PATH is your backup route",
+        name: "PATH, Hoboken to Manhattan", label: "PATH", rowLabel: ["PATH", "Hoboken to NYC"], order: 4, tile: "air", scope: "home", kind: "status", w: 0.5, wWhy: "PATH is your backup route",
         state: /suspend/i.test(all) ? "major" : open.length ? "minor" : "ok",
         short: open.length ? `${open.length} incident${open.length === 1 ? "" : "s"}` : "no incidents",
         note: "From the Port Authority's incident feed. PATH is your backup route across the Hudson.",

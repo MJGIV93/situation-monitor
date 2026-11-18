@@ -35,7 +35,7 @@ function nws({ id, zones, box, name, label, note }) {
       return {
         name, label, tile: "hazard", scope: "home", kind: "events", rule: "weather",
         events,
-        short: here.length ? clip(here[0].event, 26) : events.length ? "elsewhere in county" : "none active",
+        short: here.length ? clip(here[0].event, 26) : events.length ? "not in town" : "none active",
         note,
         source: `https://alerts.weather.gov/search?zone=${zones}`,
       };

@@ -453,7 +453,7 @@ export function rowText(f, c, now = Date.now()) {
   }
   if (k === "airports") {
     const w = worstAirport(f);
-    if (!w || w.s === "ok" || !w.s) return ["On time", f.planned ? "program possible later" : arr(f.airports).map((a) => a.id).join(" ")];
+    if (!w || w.s === "ok" || !w.s) return ["On time", f.planned ? "program possible" : arr(f.airports).map((a) => a.id).join(" ")];
     const what = w.s === "closed" ? "Closed" : w.s === "stop" ? "Ground stop" : w.min ? w.min + " min" : "Delays";
     return [what, w.id + (w.s === "program" ? " delay program" : w.s === "delays" && w.why ? ", " + w.why : w.why ? ", " + w.why : "")];
   }
