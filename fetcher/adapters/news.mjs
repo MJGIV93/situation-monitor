@@ -20,13 +20,14 @@ const FEEDS = [
   ["France 24", "https://www.france24.com/en/rss"],
 ];
 const OUTLETS = [...new Set(FEEDS.map((f) => f[0]))];
-const WINDOW_H = 18, MIN_OUTLETS = 3, SHOWN = 8;
+const WINDOW_H = 18, MIN_OUTLETS = 3, SHOWN = 12;
 
 // Running stories. Every headline on one of these is gathered into a single entry, because
 // a war produces a dozen differently worded headlines a day that would never group by wording.
 const THREADS = [
   ["Iran", /\biran|tehran|hormuz|qeshm|\birgc\b|houthi|(strike|attack|missile|drone)\w*\b.*\b(bahrain|kuwait|qatar)\b|\b(bahrain|kuwait|qatar)\b.*(strike|attack|missile|drone)/i],
   ["Russia-Ukraine", /ukrain|kyiv|\bcrimea|\bkerch\b|zelensky|donbas|kharkiv|russia\w*\b.*\b(strike|missile|drone|attack|troops|invasion|offensive)/i],
+  ["Israel-Gaza", /\bgaza|hamas|hezbollah|west bank|israel\w*\b.*\b(strike|attack|ceasefire|hostage|offensive|troops)|lebanon\b.*\b(strike|attack)/i],
   ["China-Taiwan", /taiwan|south china sea/i],
   ["North Korea", /north korea|pyongyang|\bkim jong/i],
 ];
@@ -34,6 +35,15 @@ const THREADS = [
 const FLAGS = [
   ["Attack", /terror|bombing|\bbomb\b|mass shooting|gunman|gunmen|shooter|hostage|explosion|car ramm/i],
   ["Nuclear", /nuclear (weapon|test|strike|threat|plant|warhead)|radiation leak/i],
+  ["US military", /\b(US|U\.S\.|american) (air)?strikes?\b|\bpentagon (orders|deploys|sends|announces|confirms)|troops? (deploy|sent to|withdraw)|national guard (deploy|troops|sent)|carrier (strike )?group|\b(US|U\.S\.) (navy|forces|warships?|jets?) (strike|attack|deploy|intercept|sink|seize|shoot)/i],
+  ["Cyber", /cyber ?attack|\bhack(ed|ers?|ing)?\b|ransomware|data breach|tech (outage|problem|turmoil)|\boutages?\b/i],
+  ["Grid", /blackout|power (grid|outage|cut)|grid (failure|emergency|operator)|\bpipeline\b|\brefinery\b/i],
+  ["Aviation", /ground stop|plane crash|jet crash|airliner|air traffic control|\bFAA\b|midair|flights? (grounded|cancel)/i],
+  ["Markets", /bank (failure|run|collapse)|stocks? (plunge|tumble|crash|sink|slide)|market (crash|rout|plunge|turmoil|sell-?off)|circuit breaker|emergency rate|\brecession\b/i],
+  ["US government", /government shutdown|\bshutdown\b|national emergency|insurrection act|martial law|assassinat|impeach|25th amendment|state of emergency/i],
+  ["Disaster", /hurricane|earthquake|wildfire|tornado|tsunami|typhoon|volcano|landslide|\bflood(s|ing|ed)?\b/i],
+  ["Outbreak", /outbreak|pandemic|quarantine|bird flu|ebola|measles|mpox|new variant/i],
+  ["NY-NJ", /new york city|\bnew york\b(?! times)|\bnyc\b|manhattan|brooklyn|new jersey|\bnewark\b|nj transit|\bmamdani\b/i],
 ];
 
 const SKIP_TITLE = /^(live|watch|listen|video|quiz|opinion|photos?|in pictures|podcast|newsletter|news wrap|morning|briefing)\b[^a-z]|crossword|wordle|horoscope|\bas it happened\b|^the papers/i;

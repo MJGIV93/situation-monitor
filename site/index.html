@@ -95,7 +95,9 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: 26px; line-heig
 
 /* board */
 .board { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
-.board > .signals, .board > .latest { grid-column: 1 / -1; }
+.nowcol, #newsHost { grid-column: 1 / -1; min-width: 0; }
+.nowcol { display: flex; flex-direction: column; gap: 12px; }
+#newsHost:empty { display: none; }
 .dial { padding: 14px 12px; display: flex; flex-direction: column; gap: 8px; }
 .dhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
 .gauge { position: relative; width: 100%; max-width: 250px; align-self: center; }
@@ -161,6 +163,8 @@ body.wall .tail, body.wall .how { display: none; }
 .hl .hlm { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 3px; font-size: 11.5px; color: var(--dim); }
 .hl .tag { padding: 0 5px; border: 1px solid var(--line); border-radius: 2px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg); }
 .hl[open] .hlt { color: var(--fg); }
+.hl .hlo { display: none; margin-top: 3px; font-size: 11.5px; color: var(--dim); }
+.news { margin: 0; }
 .hl ul { padding: 0 0 8px; }
 .hl li { padding: 4px 0; font-size: 13px; line-height: 1.3; }
 .hl li a { color: var(--mid); text-decoration: none; }
@@ -259,7 +263,9 @@ body.wall .tail, body.wall .how { display: none; }
 .phead { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
 .phead .ctitle { font-size: 24px; }
 .pclose { appearance: none; -webkit-appearance: none; flex: none; min-height: 34px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 4px; background: none; color: var(--fg); font: inherit; font-size: 13px; cursor: pointer; }
-.pbody { overflow-y: auto; overscroll-behavior: contain; padding: 14px 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+.pscroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.pbody { padding: 14px 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+.pquiet { color: var(--dim); font-size: 14px; }
 .pval { display: grid; grid-template-columns: minmax(0, 1fr) 120px; align-items: center; gap: 14px; }
 .pval b { display: block; font-family: var(--f-display); font-weight: 600; font-size: 36px; line-height: 1; }
 .pval span { display: block; margin-top: 3px; font-size: 13px; color: var(--c, var(--dim)); }
@@ -280,11 +286,9 @@ body.wall .tail, body.wall .how { display: none; }
 .sib:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 @keyframes sheetUp { from { transform: translateY(24px); opacity: 0; } }
 @keyframes slideFromRight { from { transform: translateX(24px); opacity: 0; } }
-@keyframes slideFromLeft { from { transform: translateX(-24px); opacity: 0; } }
 @media (min-width: 720px) {
   .scrim { display: none; }
   .panel { top: 0; left: auto; width: min(420px, 46vw); max-height: none; border: 0; border-left: 1px solid var(--line); border-radius: 0; box-shadow: -10px 0 30px rgba(0, 0, 0, 0.18); padding-bottom: 0; animation-name: slideFromRight; }
-  .panel[data-side="left"] { left: 0; right: auto; border-left: 0; border-right: 1px solid var(--line); box-shadow: 10px 0 30px rgba(0, 0, 0, 0.18); animation-name: slideFromLeft; }
 }
 @media (prefers-reduced-motion: reduce) { .panel { animation: none; } }
 
@@ -307,7 +311,16 @@ body.wall .tail, body.wall .how { display: none; }
   .wrap { padding-block: 14px 36px; }
   .dial { padding: 16px; }
   .gauge .read { font-size: 62px; }
-  .board > .signals, .board > .latest { grid-column: auto; }
+  /* Top band: the two dials, then what is happening now, then headlines. The log and the
+     headlines scroll inside their cards, so the band's height comes from the other cards. */
+  .board { grid-template-areas: "d1 d2" "now news"; }
+  #dialNat { grid-area: d1; }
+  #dialHome { grid-area: d2; }
+  .nowcol { grid-area: now; grid-column: auto; gap: 8px; min-height: 0; }
+  .nowcol .latest { flex: 1 1 0; min-height: 150px; overflow-y: auto; }
+  #newsHost { grid-area: news; grid-column: auto; position: relative; min-height: 520px; }
+  #newsHost .news { position: absolute; inset: 0; overflow-y: auto; }
+  .hl .hlo { display: block; }
   .domlist { display: block; columns: 4 330px; column-gap: 8px; }
   .dom { break-inside: avoid; margin: 0 0 8px; }
   .board { gap: 8px; }
@@ -319,8 +332,46 @@ body.wall .tail, body.wall .how { display: none; }
   .clocks { margin-left: 0; }
 }
 @media (min-width: 1280px) {
-  .board { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .board { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-areas: "d1 d2 now news"; }
 }
+
+/* ---- where the detail pane lives (set on <body> by layoutMode) ----
+   sheet   phone: slides up over the page
+   side    tablet: slides in over the right edge
+   push    laptop: opens on the right and the page makes room
+   right   wide screen: always docked on the right
+   bottom  tall portrait screen: always docked along the bottom */
+body[data-layout="push"] .panel, body[data-layout="right"] .panel { top: var(--barh, 68px); box-shadow: none; z-index: 5; }
+body[data-layout="push"].paneopen .wrap { padding-right: calc(min(420px, 46vw) + 12px); }
+body[data-layout="push"].paneopen .board { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "d1 d2" "now news"; }
+body.docked .panel { animation: none; box-shadow: none; z-index: 5; }
+body.docked .wrap, body.docked .barin { max-width: none; }
+body.docked .wallbtn { display: inline-block; }
+body.docked .domlist { columns: 4 300px; }
+
+body[data-layout="right"] .panel { width: 448px; }
+body[data-layout="right"] .wrap { padding-right: 460px; }
+body[data-layout="right"] .board, body[data-layout="bottom"].roomy .board { grid-template-columns: 500px minmax(0, 1fr) minmax(0, 1.05fr); grid-template-areas: "d1 now news" "d2 now news"; }
+
+body[data-layout="bottom"] .panel { top: auto; left: 0; right: 0; bottom: 0; width: auto; height: var(--paneh); max-height: none; border: 0; border-top: 1px solid var(--line); border-radius: 0; }
+body[data-layout="bottom"] { --paneh: clamp(360px, 27vh, 560px); }
+body[data-layout="bottom"] .wrap { padding-bottom: calc(var(--paneh) + 16px); }
+body[data-layout="bottom"] .board { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "d1 d2" "now news"; }
+body[data-layout="bottom"] .pbody { display: block; columns: 3 300px; column-gap: 32px; }
+body[data-layout="bottom"] .pbody > * { break-inside: avoid; margin: 0 0 14px; }
+body[data-layout="bottom"] .pbody > .det { display: block; break-inside: auto; }
+body[data-layout="bottom"] .panel .det > * { break-inside: avoid; margin: 0 0 12px; }
+
+/* Dials lie on their side when they have a column of their own. */
+body.compact .dial { display: grid; grid-template-columns: 176px minmax(0, 1fr); grid-template-areas: "head head" "gauge verdict" "gauge drivers" "spark spark"; gap: 6px 18px; align-content: start; }
+body.compact .dial .dhead { grid-area: head; }
+body.compact .dial .gauge { grid-area: gauge; align-self: start; max-width: none; }
+body.compact .dial .gauge .read { font-size: 50px; }
+body.compact .dial .verdict { grid-area: verdict; text-align: left; }
+body.compact .dial .breadth { justify-content: flex-start; }
+body.compact .dial .drivers { grid-area: drivers; }
+body.compact .dial .drivers b { width: 34%; }
+body.compact .dial .sparkbox { grid-area: spark; }
 </style>
 </head>
 <body>
@@ -336,7 +387,7 @@ body.wall .tail, body.wall .how { display: none; }
     </div>
     <div class="status"><span class="dot" id="dot"></span><span><span id="statusText">Connecting</span><span id="nextText"></span></span></div>
     <div class="clocks"><span><b id="clock"></b></span><span><b id="zulu"></b></span></div>
-    <button type="button" class="wallbtn" id="wallBtn" aria-pressed="false" title="Full screen, cycling through whatever is active">Wall mode</button>
+    <button type="button" class="wallbtn" id="wallBtn" aria-pressed="false" title="Full screen for a spare monitor">Wall mode</button>
   </div>
 </header>
 <div class="wrap">
@@ -358,6 +409,7 @@ body.wall .tail, body.wall .how { display: none; }
       <ul class="drivers"></ul>
       <div class="sparkbox"></div>
     </section>
+    <div class="nowcol">
     <section class="card signals" id="signals">
       <h3 class="ctitle">Situations</h3>
       <div id="signalRows"></div>
@@ -368,6 +420,8 @@ body.wall .tail, body.wall .how { display: none; }
       <ul id="latestTop"></ul>
       <details id="latestMore" hidden><summary></summary><ul id="latestRest"></ul></details>
     </section>
+    </div>
+    <div id="newsHost"></div>
   </div>
 
   <section class="domlist" id="domlist" aria-label="Domains"></section>
@@ -406,7 +460,7 @@ body.wall .tail, body.wall .how { display: none; }
     <div><span class="small" id="panelKicker"></span><h3 class="ctitle" id="panelTitle"></h3></div>
     <button type="button" class="pclose" id="panelClose">Close</button>
   </header>
-  <div class="pbody" id="panelBody"></div>
+  <div class="pscroll" id="panelScroll"><div class="pbody" id="panelBody"></div></div>
 </aside>
 
 <script type="module">
@@ -424,8 +478,12 @@ const wide = window.matchMedia ? window.matchMedia("(min-width: 720px)") : null;
 const state = { feeds: [], scannedAt: null, history: [], log: [], errors: [], trailT: [], trails: {}, loaded: false, problem: "" };
 const flashUntil = {}; // reading id -> time until which its row is highlighted after a change
 const lastText = {};
-let sel = null; // id of the reading shown in the detail panel
-let selSide = "right";
+let sel = null; // id of the reading the viewer picked for the detail pane
+let shown = null; // id the pane is showing: the pick, or the top situation when the pane is docked
+const mq = (q) => (window.matchMedia ? window.matchMedia(q) : { matches: false });
+const mqTall = mq("(min-width: 720px) and (orientation: portrait) and (min-height: 1200px)"), mqRight = mq("(min-width: 1500px)"), mqPush = mq("(min-width: 1100px)"), mqRoomy = mq("(min-width: 1000px)");
+function layoutMode() { return mqTall.matches ? "bottom" : mqRight.matches ? "right" : mqPush.matches ? "push" : wide && wide.matches ? "side" : "sheet"; }
+const docked = () => { const m = layoutMode(); return m === "right" || m === "bottom"; };
 let lastLog = null;
 
 const $ = (id) => document.getElementById(id);
@@ -748,7 +806,7 @@ function detail(f, c) {
   return box;
 }
 function row(f, tag) {
-  const c = f._c, ok = live(f), on = sel === f.id;
+  const c = f._c, ok = live(f), on = shown === f.id;
   const d = el("div", "rd" + (ok ? (fresh(f) ? "" : " old") : " off") + (on ? " sel" : "") + (ok && band(c.sev) === 0 ? " q" : "") + (flashUntil[f.id] > Date.now() ? " flash" : ""));
   if (ok && band(c.sev) > 0) d.setAttribute("data-band", band(c.sev));
   const s = el("button", "row"), k = el("span", "rk");
@@ -768,11 +826,11 @@ function row(f, tag) {
   s.appendChild(v);
   s.addEventListener("click", () => {
     if (sel === f.id) { closePanel(); return; }
-    // Open on the side away from the row, so the row stays in view.
-    const r = s.getBoundingClientRect();
-    selSide = r.left + r.width / 2 > window.innerWidth / 2 ? "left" : "right";
+    const host = s.closest("#signalRows") ? "#signalRows" : "#domlist";
     sel = f.id;
     render();
+    // The page reflows when the pane makes room, so keep the picked row in view.
+    if (layoutMode() === "push") { const again = document.querySelector(host + ' .row[data-id="' + f.id + '"]'); if (again) again.scrollIntoView({ block: "nearest" }); }
   });
   d.appendChild(s);
   return d;
@@ -826,14 +884,25 @@ function renderTimeline(host, scope) {
 
 /* ---- detail panel ---- */
 function renderPanel() {
-  const panel = $("panel"), f = sel && state.feeds.find((x) => x.id === sel);
-  panel.hidden = !f;
-  $("scrim").hidden = !f;
-  if (!f) { sel = null; return; }
-  const c = f._c, ok = live(f), body = $("panelBody"), top = body.scrollTop, t = rowText(f, c);
-  panel.setAttribute("data-side", selSide);
+  const panel = $("panel"), dock = docked(), f = shown && state.feeds.find((x) => x.id === shown);
+  const body = $("panelBody"), scroller = $("panelScroll"), top = scroller.scrollTop;
+  panel.hidden = !f && !dock;
+  $("scrim").hidden = !f || layoutMode() !== "sheet";
+  document.body.classList.toggle("paneopen", !panel.hidden);
+  $("panelClose").hidden = dock && !sel;
+  $("panelClose").textContent = dock ? "Back to top" : "Close";
+  if (!f) {
+    // Docked with nothing active: say so instead of leaving the pane blank.
+    panel.removeAttribute("data-band");
+    $("panelKicker").textContent = "Top situation";
+    $("panelTitle").textContent = state.loaded ? "All quiet" : "Loading";
+    body.textContent = "";
+    if (state.loaded) body.appendChild(el("p", "pquiet", "No reading is adding to either score right now. Pick any reading to see its detail here."));
+    return;
+  }
+  const c = f._c, ok = live(f), t = rowText(f, c);
   if (ok && band(c.sev) > 0) panel.setAttribute("data-band", band(c.sev)); else panel.removeAttribute("data-band");
-  $("panelKicker").textContent = (f.scope === "home" ? "Home" : "USA") + " · " + tileName(f.tile);
+  $("panelKicker").textContent = (dock && !sel ? "Top situation · " : "") + (f.scope === "home" ? "Home" : "USA") + " · " + tileName(f.tile);
   $("panelTitle").textContent = String(f.name || f.label || "Reading");
   body.textContent = "";
   const val = el("div", "pval"), txt = el("div");
@@ -844,7 +913,8 @@ function renderPanel() {
   body.appendChild(val);
   body.appendChild(detail(f, c));
   panelExtras(f, c).forEach((sec) => body.appendChild(sec));
-  body.scrollTop = top;
+  scroller.scrollTop = body.dataset.id === f.id ? top : 0;
+  body.dataset.id = f.id;
 }
 function section(title) {
   const s = el("section", "psec");
@@ -934,7 +1004,8 @@ function renderSignals() {
 const newsCard = el("section", "card dom news");
 let newsKey = "";
 function renderNews() {
-  const n = state.news, stories = arr(n && n.stories);
+  // A phone gets the top eight. Wider screens get them all, in a card that scrolls.
+  const n = state.news, stories = arr(n && n.stories).slice(0, wide && wide.matches ? 12 : 8);
   const key = JSON.stringify([n && n.checkedAt, stories.map((s) => s.link)]);
   if (key === newsKey) return;
   newsKey = key;
@@ -955,6 +1026,7 @@ function renderNews() {
     meta.appendChild(el("span", null, s.n + " outlets"));
     if (s.first) meta.appendChild(el("span", null, "since " + clockText(new Date(s.first))));
     sum.appendChild(meta);
+    sum.appendChild(el("span", "hlo", arr(s.links).map((l) => l.o).join(" · ")));
     d.appendChild(sum);
     const ul = el("ul");
     arr(s.links).forEach((l) => {
@@ -973,7 +1045,7 @@ function renderNews() {
 function renderDomains() {
   const host = $("domlist");
   host.textContent = "";
-  if (state.news) { renderNews(); host.appendChild(newsCard); }
+  if (state.news) { renderNews(); if (newsCard.parentNode !== $("newsHost")) $("newsHost").appendChild(newsCard); }
   TILES.forEach((t) => {
     const feeds = state.feeds.filter((f) => f.tile === t.id);
     if (!feeds.length) return;
@@ -1029,7 +1101,7 @@ function renderStatus() {
     const top = $("latestTop"), rest = $("latestRest"), more = $("latestMore");
     top.textContent = "";
     rest.textContent = "";
-    const show = wide && wide.matches ? 6 : 4, today = dayText(new Date());
+    const show = wide && wide.matches ? 99 : 4, today = dayText(new Date());
     state.log.forEach((x, i) => {
       const li = el("li"), d = new Date(Date.parse(x.t)), day = dayText(d);
       li.appendChild(el("time", null, (day && day !== today ? day + ", " : "") + clockText(d)));
@@ -1058,6 +1130,16 @@ function render() {
   const b = $("banner"), msg = state.problem || late;
   b.hidden = !msg;
   b.textContent = msg;
+  // Where the detail pane lives, and what it shows when the viewer hasn't picked anything.
+  const mode = layoutMode(), dock = mode === "right" || mode === "bottom";
+  document.body.dataset.layout = mode;
+  document.body.classList.toggle("docked", dock);
+  document.body.classList.toggle("roomy", mode === "bottom" && mqRight.matches);
+  document.body.classList.toggle("compact", mode === "right" || (mode === "bottom" && mqRoomy.matches));
+  document.documentElement.style.setProperty("--barh", document.querySelector(".bar").offsetHeight + "px");
+  if (sel && !state.feeds.some((x) => x.id === sel) && state.loaded) sel = null;
+  const lead = state.feeds.filter((x) => live(x) && sev(x) > 0).sort((a, b) => sev(b) - sev(a))[0];
+  shown = sel || (dock && lead ? lead.id : null);
   renderStatus();
   renderDial("dialNat", "national");
   renderDial("dialHome", "home");
@@ -1183,7 +1265,9 @@ if (wide && wide.addEventListener) wide.addEventListener("change", render);
 $("panelClose").addEventListener("click", closePanel);
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePanel(); });
 // A click anywhere outside the panel and the rows closes it.
-document.addEventListener("click", (e) => { if (sel && !e.target.closest("#panel") && !e.target.closest(".row") && !e.target.closest("#wallBtn")) closePanel(); });
+// A click elsewhere closes the pane only where it covers the page.
+document.addEventListener("click", (e) => { const m = layoutMode(); if (sel && (m === "sheet" || m === "side") && !e.target.closest("#panel") && !e.target.closest(".row") && !e.target.closest("#wallBtn")) closePanel(); });
+[mqTall, mqRight, mqPush, mqRoomy].forEach((m) => { if (m.addEventListener) m.addEventListener("change", render); });
 
 // Arrow keys step through the readings while the panel is open.
 document.addEventListener("keydown", (e) => {
@@ -1198,13 +1282,14 @@ document.addEventListener("keydown", (e) => {
   if (r) r.scrollIntoView({ block: "nearest" });
 });
 
-// Wall mode: full screen for a spare monitor, with the panel cycling through whatever is active.
+// Wall mode: full screen for a spare monitor. Where the pane is docked it cycles through
+// whatever is active. Elsewhere it would cover the board, so it stays closed.
 let wallTimer = null;
 function wallStep() {
+  if (!docked()) return;
   const active = state.feeds.filter((f) => live(f) && sev(f) >= 10).sort((a, b) => sev(b) - sev(a)).map((f) => f.id);
   if (!active.length) { if (sel) { sel = null; render(); } return; }
   sel = active[(active.indexOf(sel) + 1) % active.length];
-  selSide = "right";
   render();
 }
 function setWall(on) {
@@ -1214,11 +1299,13 @@ function setWall(on) {
   clearInterval(wallTimer);
   wallTimer = null;
   if (on) {
+    if (!docked()) closePanel();
     if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
     wallStep();
     wallTimer = setInterval(wallStep, 15000);
-  } else if (document.fullscreenElement && document.exitFullscreen) {
-    document.exitFullscreen().catch(() => {});
+  } else {
+    if (docked() && sel) { sel = null; render(); }
+    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
   }
 }
 $("wallBtn").addEventListener("click", () => setWall(!document.body.classList.contains("wall")));
