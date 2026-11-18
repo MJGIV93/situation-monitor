@@ -63,7 +63,7 @@ export default [
       if (e4.length >= 2 || e6.length >= 6) step = 3;
       return [
         {
-          id: "mil-air", name: "Military aircraft airborne, worldwide", label: "Aircraft airborne", tile: "mil", scope: "national", kind: "count",
+          id: "mil-air", name: "Military aircraft airborne, worldwide", label: "Aircraft up", tile: "mil", scope: "national", kind: "count",
           num: up.length, base: base ?? undefined, tol: 1.5, sev: 0,
           short: base ? `usual ${Math.round(base)}` : "building baseline",
           items: breakdown,
@@ -71,7 +71,7 @@ export default [
           source, track: { up: up.length, us: up.filter(inUS).length, ...Object.fromEntries(groups) },
         },
         {
-          id: "mil-tankers", name: "Refueling tankers airborne", label: "Tankers airborne", tile: "mil", scope: "national", kind: "count",
+          id: "mil-tankers", name: "Refueling tankers airborne", label: "Tankers up", tile: "mil", scope: "national", kind: "count",
           num: tankers.length, base: tankerBase && tankerBase >= 1 ? tankerBase : undefined, tol: 2, sev: 0,
           short: tankerBase ? `usual ${Math.round(tankerBase)}` : "building baseline",
           items: tankers.slice(0, 6).map(tag),
@@ -79,7 +79,7 @@ export default [
           source, track: { up: tankers.length },
         },
         {
-          id: "mil-command", name: "Airborne command posts (E-4B and E-6B)", label: "Command aircraft", tile: "mil", scope: "national", kind: "level",
+          id: "mil-command", name: "Airborne command posts (E-4B and E-6B)", label: "Command posts", tile: "mil", scope: "national", kind: "level",
           steps: ["None up", "Routine", "Unusual", "Surge"], sevs: [0, 0, 25, 60],
           ladder: ["none visible", "E-6Bs on patrol, or one E-4B", "one E-4B with four or more E-6Bs", "two E-4Bs, or six or more E-6Bs"],
           step, short: `${e4.length} E-4B, ${e6.length} E-6B`,
@@ -108,7 +108,7 @@ export default [
       const source = "https://tfr.faa.gov/tfr3/";
       return [
         {
-          id: "tfr", name: "FAA flight restrictions", label: "Flight restrictions", tile: "mil", scope: "national", kind: "count",
+          id: "tfr", name: "FAA flight restrictions", label: "Airspace limits", tile: "mil", scope: "national", kind: "count",
           num: vip.length + security.length, sev: 0, short: `${vip.length} VIP visits`,
           items: vip.slice(0, 5).map((t) => `VIP movement: ${place(t)}${isFinite(when(t)) ? ", " + etDay(when(t)) : ""}`),
           note: `${list.length} temporary flight restrictions are active or scheduled. VIP ones follow the president and vice president, and security ones cover military sites and operations. Shown for context and not scored.`,
@@ -133,7 +133,7 @@ export default [
       const last = rows.at(-1), prior = rows.slice(-91, -1).map((c) => Number(c[2]));
       const base = round(prior.reduce((a, b) => a + b, 0) / prior.length, 0);
       return {
-        name: "GPS interference worldwide (GPSJam)", label: "GPS interference", tile: "mil", scope: "national", kind: "count",
+        name: "GPS interference worldwide (GPSJam)", label: "GPS jamming", tile: "mil", scope: "national", kind: "count",
         num: Number(last[2]), base, tol: 1.5, short: `avg ${commas(base)}`,
         asOf: etDay(Date.parse(last[0] + "T12:00:00Z")),
         note: "The number of map cells where aircraft reported degraded GPS in a day, which rises with military jamming around conflict zones. Compared with the prior 90 days. Published daily, a day behind.",
@@ -155,7 +155,7 @@ export default [
       const four = items.filter((i) => i.level === 4);
       const fresh = items.filter((i) => i.level >= 3 && isFinite(i.at) && ctx.now - i.at < 7 * 86400e3).sort((a, b) => b.level - a.level || b.at - a.at);
       return {
-        name: "State Department travel advisories", label: "Do-not-travel list", tile: "mil", scope: "national", kind: "events", rule: "travel",
+        name: "State Department travel advisories", label: "Do-not-travel", tile: "mil", scope: "national", kind: "events", rule: "travel",
         events: fresh.slice(0, 8).map((i) => ({ event: clip(i.title, 120), at: new Date(i.at).toISOString(), text: "updated " + etDay(i.at), level: i.level })),
         short: `${four.length} at Level 4`,
         note: `${four.length} countries are at Level 4, Do Not Travel, and ${items.filter((i) => i.level === 3).length} at Level 3. A new or reissued Level 4 scores for a few days, since those usually follow a war, coup or evacuation.`,

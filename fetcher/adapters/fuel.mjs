@@ -29,7 +29,7 @@ export default [
     }
   }),
   price("rbob", {
-    ...fuel, name: "Gasoline futures (RBOB)", label: "Gas, wholesale", fmt: "usd2",
+    ...fuel, name: "Gasoline futures (RBOB)", label: "Gas futures", fmt: "usd2",
     note: "The wholesale price of gasoline, before taxes and delivery. Pump prices tend to follow it within a week or two. Delayed about 10 minutes.",
     source: "https://finance.yahoo.com/quote/RB=F/",
   }, (ctx) => yahoo(ctx, "RB=F")),

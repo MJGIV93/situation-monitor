@@ -124,23 +124,7 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: 26px; line-heig
 
 /* route strip and timeline */
 .mid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
-.route, .tline { padding: 12px 14px 10px; }
-.rline { display: flex; align-items: stretch; margin-top: 4px; }
-.rstop, .rseg { display: flex; flex-direction: column; align-items: center; min-width: 0; }
-.rstop { flex: none; width: 12px; }
-.rseg { flex: 1 1 0; appearance: none; -webkit-appearance: none; background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; }
-.rseg:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
-.rtop { height: 34px; max-width: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding-bottom: 4px; font-size: 11.5px; line-height: 1.2; color: var(--dim); white-space: nowrap; overflow: hidden; }
-.rtop b { font-weight: 600; color: var(--mid); }
-.rseg[data-band] .rtop span { color: var(--c); }
-.rbar { display: block; width: 100%; height: 4px; margin: 4px 0; background: var(--stale); }
-.rseg[data-band] .rbar { height: 6px; margin: 3px 0; background: var(--c); }
-.rseg.off .rbar { background: repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 10px); }
-.rdot { display: block; flex: none; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--mid); background: var(--surface); }
-.rbot { height: 16px; margin-top: 4px; font-size: 11.5px; color: var(--dim); white-space: nowrap; }
-.rstop:first-child .rbot { align-self: flex-start; }
-.rstop:last-child .rbot { align-self: flex-end; }
-.rnote { display: block; margin-top: 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; }
+.tline { padding: 12px 14px 10px; }
 .thead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 14px; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--dim); }
 .legend i { display: inline-block; width: 18px; margin-right: 5px; vertical-align: middle; border-top: 2px solid var(--fg); }
@@ -149,8 +133,6 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: 26px; line-heig
 .tchart { position: relative; margin-top: 8px; }
 .tchart svg { display: block; width: 100%; height: 110px; }
 .tchart .ylab { position: absolute; right: 0; font-size: 10.5px; color: var(--dim); transform: translateY(-110%); }
-@media (max-width: 719px) { .rtop span { display: none; } .rbot { font-size: 10.5px; } }
-@media (min-width: 1100px) { .mid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 body.wall .tail, body.wall .how { display: none; }
 .wallbtn { appearance: none; -webkit-appearance: none; padding: 5px 10px; border: 1px solid var(--line); border-radius: 2px; background: none; color: var(--dim); font: inherit; font-size: 12px; cursor: pointer; }
 .wallbtn:hover, .wallbtn[aria-pressed="true"] { color: var(--fg); border-color: var(--dim); }
@@ -167,21 +149,28 @@ body.wall .tail, body.wall .how { display: none; }
 
 /* instrument rows */
 .rd + .rd { border-top: 1px solid var(--line); }
-.row { appearance: none; -webkit-appearance: none; background: none; border: 0; margin: 0; font: inherit; color: inherit; width: 100%; text-align: left; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) 84px 104px; column-gap: 10px; align-items: center; padding: 5px 0; min-height: 40px; }
+.row { appearance: none; -webkit-appearance: none; background: none; border: 0; margin: 0; font: inherit; color: inherit; width: 100%; text-align: left; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) 76px 100px; column-gap: 10px; align-items: center; padding: 5px 0; min-height: 40px; }
 @media (pointer: coarse) { .row { min-height: 44px; } }
 .row:focus-visible, .pclose:focus-visible, a:focus-visible, .latest summary:focus-visible, .how summary:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
-.rk { font-size: 14px; color: var(--dim); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rk { font-size: 13.5px; color: var(--dim); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rk i { font-style: normal; font-size: 10px; font-weight: 600; letter-spacing: 0.06em; margin-right: 6px; padding: 1px 4px; border: 1px solid var(--line); border-radius: 3px; }
 .rv { text-align: right; min-width: 0; }
 .rv b { display: block; font-weight: 600; font-size: 16px; line-height: 1.15; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rv span { display: block; font-size: 11.5px; line-height: 1.2; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rd[data-band] .rv span.hot { color: var(--c); }
+/* One light per row. Green: checked and fine. Band color: active. Ring: not scored. Dash: the source is stale or dead. */
+.lt { display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: var(--b0); }
+.rd[data-band] .lt { background: var(--c); }
+.lt.ns { background: transparent; box-shadow: inset 0 0 0 1.5px var(--dim); }
+.lt.dead { height: 2px; border-radius: 0; background: var(--stale); vertical-align: middle; }
+/* Quiet rows keep neutral instruments, so color in an instrument always means something is happening. */
 .rd.q .rv b { color: var(--mid); font-weight: 500; }
-.rd.q .steps i.on, .rd.q .pips i, .rd.q .range i { background: var(--stale); }
-.rd.q .lamp { height: 2px; background: var(--stale); }
-.rd.q .bullets i, .rd.q .ports i { border-color: var(--stale); color: var(--dim); }
-.grp[data-band="0"] b { color: var(--stale); }
-.domhead[data-band="0"] .mark { background: transparent; border-color: var(--stale); }
+.rd.q .steps i.on, .rd.q .pips i, .rd.q .range i { background: var(--mid); }
+.rd.q .lamp { height: 2px; background: var(--line); }
+.rd.q .bullets i, .rd.q .ports i { border-color: var(--mid); color: var(--mid); }
+.grp[data-band="0"] b { color: var(--mid); }
+.legendrow { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 8px; }
+.legendrow span { display: inline-flex; align-items: center; }
 .rd.flash > .row { animation: flash 2.6s ease-out; }
 @keyframes flash { from { background: color-mix(in srgb, var(--fg) 16%, transparent); } to { background: transparent; } }
 @media (prefers-reduced-motion: reduce) { .rd.flash > .row { animation: none; } }
@@ -352,10 +341,6 @@ body.wall .tail, body.wall .how { display: none; }
   </div>
 
   <div class="mid">
-    <section class="card route" aria-label="Commute route">
-      <h3 class="ctitle">Route</h3>
-      <div id="routeBody"></div>
-    </section>
     <section class="card tline" aria-label="Scores over the past 24 hours">
       <div class="thead">
         <h3 class="ctitle">Past 24 hours</h3>
@@ -372,6 +357,7 @@ body.wall .tail, body.wall .how { display: none; }
       <summary>How the scores work</summary>
       <p class="small">Both scores run 0 to 100 and higher is worse. Every reading carries a signal from 0 to 100, which is how much concern it adds, not how big its number is. A falling stock index or a train running late has a high signal. Each reading shows its rule and arithmetic when opened. A domain takes its worst reading plus a fifth of the next two. Domains then stack by weight, so several unrelated problems at once raise a score far more than one alone. The points under each dial show how far that score would fall if the domain went quiet.</p>
       <p class="small">0 to 9 is quiet, 10 to 24 watch, 25 to 49 elevated, 50 to 74 disrupted, 75 and up severe.</p>
+      <p class="small legendrow"><span><i class="lt"></i>Checked and fine</span><span data-band="2"><i class="lt" style="background: var(--c)"></i>Active, in its band color</span><span><i class="lt ns"></i>Not scored: context, or still building a baseline</span><span><i class="lt dead"></i>Source stale or not answering</span></p>
       <p class="small">Readings refresh every 10 minutes, and slower sources hourly. If a source stops answering, its last reading stays up. It is dimmed after 3 hours and stops counting after 24.</p>
     </details>
     <div class="foot">
@@ -716,6 +702,7 @@ function row(f, tag) {
   s.dataset.id = f.id;
   s.setAttribute("aria-haspopup", "dialog");
   s.setAttribute("aria-expanded", on ? "true" : "false");
+  k.appendChild(el("span", "lt" + (!ok || !fresh(f) ? " dead" : c.unscored ? " ns" : "")));
   if (tag) k.appendChild(el("i", null, tag));
   k.appendChild(document.createTextNode(String(f.label || f.name || "Reading")));
   k.title = String(f.name || "");
@@ -735,74 +722,6 @@ function row(f, tag) {
   });
   d.appendChild(s);
   return d;
-}
-
-function openFrom(id, node) {
-  if (sel === id) { closePanel(); return; }
-  // Open on the side away from what was clicked, so it stays in view.
-  const r = node.getBoundingClientRect();
-  selSide = r.left + r.width / 2 > window.innerWidth / 2 ? "left" : "right";
-  sel = id;
-  render();
-}
-
-/* ---- route strip: the commute as one line, each leg colored by its reading ---- */
-const feedById = (id) => state.feeds.find((f) => f.id === id) || null;
-function routeLine(parts) {
-  const line = el("div", "rline"), narrow = !(wide && wide.matches);
-  parts.forEach((p) => {
-    if (narrow && p.short) p = Object.assign({}, p, p.stop ? { stop: p.short } : { label: p.short });
-    if (p.stop) {
-      const s = el("div", "rstop");
-      s.appendChild(el("span", "rtop"));
-      s.appendChild(el("i", "rdot"));
-      s.appendChild(el("span", "rbot", p.stop));
-      line.appendChild(s);
-      return;
-    }
-    const f = feedById(p.id);
-    let b = -1;
-    (p.ids || [p.id]).forEach((id) => { const x = feedById(id); if (x && live(x)) b = Math.max(b, band(sev(x))); });
-    const seg = el("button", "rseg" + (b < 0 ? " off" : ""));
-    seg.type = "button";
-    seg.style.flexGrow = p.grow || 1;
-    seg.setAttribute("aria-label", (p.label || p.name) + (f ? ": " + rowText(f, f._c).filter(Boolean).join(", ") : ": no reading"));
-    if (b > 0) seg.setAttribute("data-band", b);
-    const top = el("span", "rtop");
-    if (p.label) top.appendChild(el("b", null, p.label));
-    if (p.label && f && live(f)) top.appendChild(el("span", null, p.text(f)));
-    seg.appendChild(top);
-    seg.appendChild(el("i", "rbar"));
-    seg.appendChild(el("span", "rbot"));
-    seg.addEventListener("click", () => openFrom(p.id, seg));
-    line.appendChild(seg);
-  });
-  return line;
-}
-function renderRoute() {
-  const host = $("routeBody");
-  host.textContent = "";
-  const sub = (f) => { const t = rowText(f, f._c); return t[1] || t[0]; };
-  const main = (f) => rowText(f, f._c)[0];
-  host.appendChild(routeLine([
-    { stop: "Morristown" },
-    { id: "njt-me", label: "Morristown Line", grow: 3, text: sub },
-    { stop: "Newark Broad St", short: "Newark" },
-    { id: "njt-me", name: "Morristown Line", grow: 1.3 },
-    { stop: "Secaucus" },
-    { id: "njt-nec", ids: ["njt-me", "njt-nec"], label: "Hudson tunnels", short: "Tunnels", grow: 1.7, text: sub },
-    { stop: "Penn" },
-    { id: "subway", label: "2 3 A C", grow: 2, text: main },
-    { stop: "Wall St" },
-  ]));
-  host.appendChild(el("span", "rnote small", "Backup"));
-  host.appendChild(routeLine([
-    { stop: "Morristown" },
-    { id: "njt-hob", label: "Hoboken trains", grow: 3, text: sub },
-    { stop: "Hoboken" },
-    { id: "path", label: "PATH", grow: 2, text: sub },
-    { stop: "World Trade Center", short: "WTC" },
-  ]));
 }
 
 /* ---- timeline: both scores over the past day, with log entries marked ---- */
@@ -1044,7 +963,6 @@ function render() {
   renderDial("dialNat", "national");
   renderDial("dialHome", "home");
   renderSignals();
-  renderRoute();
   renderTimeline();
   renderDomains();
   renderPanel();
@@ -1110,7 +1028,7 @@ if (wide && wide.addEventListener) wide.addEventListener("change", render);
 $("panelClose").addEventListener("click", closePanel);
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePanel(); });
 // A click anywhere outside the panel and the rows closes it.
-document.addEventListener("click", (e) => { if (sel && !e.target.closest("#panel") && !e.target.closest(".row") && !e.target.closest(".rseg") && !e.target.closest("#wallBtn")) closePanel(); });
+document.addEventListener("click", (e) => { if (sel && !e.target.closest("#panel") && !e.target.closest(".row") && !e.target.closest("#wallBtn")) closePanel(); });
 
 // Arrow keys step through the readings while the panel is open.
 document.addEventListener("keydown", (e) => {

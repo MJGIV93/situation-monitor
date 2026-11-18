@@ -114,7 +114,7 @@ export default [
       }).filter((p) => p.event);
       const last = posts[0];
       return {
-        name: "Morristown local alerts (Nixle)", label: "Morristown alerts", tile: "gov", scope: "home", kind: "events", rule: "town",
+        name: "Morristown local alerts (Nixle)", label: "Town alerts", tile: "gov", scope: "home", kind: "events", rule: "town",
         events: posts.slice(0, 6).map(({ ago, ...p }) => p),
         short: last ? "last " + agoText(last.ago) : "none posted",
         note: "The public page behind the town's text alerts. Morristown Police also relay SMCMUA water notices here.",

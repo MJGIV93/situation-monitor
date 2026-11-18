@@ -104,7 +104,7 @@ export default [
       for (const v of today) sectors.set(v.sector, (sectors.get(v.sector) ?? 0) + 1);
       const infra = today.filter((v) => INFRA.test(v.sector)).length;
       return {
-        name: "Ransomware victims posted, United States", label: "Ransomware, US", tile: "cyber", scope: "national", kind: "count",
+        name: "Ransomware victims posted, United States", label: "Ransomware", tile: "cyber", scope: "national", kind: "count",
         num: today.length, base, tol: 2, short: `avg ${Math.round(base)} / day`,
         note: `US organizations named on ransomware groups' leak sites in the past 24 hours, as tracked by ransomware.live. ${infra} are in health care, government, energy, finance or transport. These are the criminals' own claims and aren't verified. Postings come in bursts, so this only scores once a day runs at double the usual pace.`,
         items: [...sectors].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([s, n]) => `${s}: ${n}`),

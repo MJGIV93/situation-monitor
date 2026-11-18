@@ -35,8 +35,8 @@ function nws({ id, zone, name, label }) {
 }
 
 export default [
-  nws({ id: "nws-morris", zone: "NJZ008", name: "NWS alerts, Morris County", label: "Morris Co. weather" }),
-  nws({ id: "nws-manhattan", zone: "NYZ072", name: "NWS alerts, Manhattan", label: "Manhattan weather" }),
+  nws({ id: "nws-morris", zone: "NJZ008", name: "NWS alerts, Morris County", label: "Morris weather" }),
+  nws({ id: "nws-manhattan", zone: "NYZ072", name: "NWS alerts, Manhattan", label: "NYC weather" }),
   {
     id: "swpc-scales",
     every: 30,
@@ -67,7 +67,7 @@ export default [
       const us = big.features.map((f) => f.properties).filter((p) => US_PLACE.test(p.place ?? ""));
       const top = day.features.map((f) => f.properties).sort((a, b) => b.mag - a.mag)[0];
       return {
-        name: "USGS earthquakes, United States", label: "Earthquakes, US", tile: "hazard", scope: "national", kind: "events", rule: "quakeUS",
+        name: "USGS earthquakes, United States", label: "Quakes, US", tile: "hazard", scope: "national", kind: "events", rule: "quakeUS",
         events: us.map((p) => ({ event: `M${p.mag.toFixed(1)}, ${p.place}`, mag: p.mag, at: new Date(p.time).toISOString(), alert: p.alert ?? undefined })),
         short: "M6+ in US",
         note: `${day.features.length} quakes of magnitude 4.5 or more worldwide in the past day` + (top ? `, the largest M${top.mag.toFixed(1)} ${top.place}.` : "."),
@@ -86,7 +86,7 @@ export default [
         return { event: `M${p.mag.toFixed(1)}, ${p.place}`, mag: p.mag, km: Math.round(d), at: new Date(p.time).toISOString(), text: `${Math.round(d * 0.621)} miles away` };
       }).sort((a, b) => b.mag - a.mag);
       return {
-        name: "USGS earthquakes near Morristown", label: "Earthquakes, local", tile: "hazard", scope: "home", kind: "events", rule: "quakeHome",
+        name: "USGS earthquakes near Morristown", label: "Quakes, local", tile: "hazard", scope: "home", kind: "events", rule: "quakeHome",
         events,
         short: "within 185 mi",
         note: "Magnitude 2 and up within 185 miles of Morristown over the past three days.",

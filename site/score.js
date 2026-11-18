@@ -309,6 +309,7 @@ function eventCalc(f, now) {
   const r = { sev: top ? top.pts : 0, lines: [], ev: ev.map((x) => Math.round(x.pts)), active: ev.filter((x) => x.pts > 0).length };
   if (top && top.pts > 0) r.lines.push("Highest: " + (top.e.event || top.e.title || "event") + ", " + top.why + ".");
   r.lines.push(EVENT_NOTES[f.rule] || EVENT_NOTES.context);
+  if (!EVENT_RULES[f.rule] || f.rule === "context") r.unscored = true;
   r.why = top && top.pts > 0 ? (r.active === 1 ? "One item is active" : r.active + " items are active") + ", and the highest sets the signal." : arr(f.events).length ? "Nothing listed is recent or serious enough to count." : "Nothing is active.";
   return r;
 }
@@ -348,6 +349,7 @@ export function calc(f, now = Date.now()) {
     r.sev = num(f.sev) || 0;
     r.lines.push(r.sev ? "Scored by a fixed value set in the fetcher." : k === "count" ? "Not scored. It's either context, or still building the history it needs to know what's normal." : "Scores 0 while nothing is active.");
     r.why = k === "count" ? "It's shown as a number without a signal for now." : "Nothing is active.";
+    if (k === "count") r.unscored = true;
   }
   if (!RULED[k] && !(k === "count" && num(f.base)) && num(f.sev) != null) r.sev = num(f.sev);
   r.sev = Math.round(clamp(r.sev || 0, 0, 100));
