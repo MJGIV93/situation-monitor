@@ -492,7 +492,12 @@ export function rowText(f, c, now = Date.now()) {
     const what = w.s === "closed" ? "Closed" : w.s === "stop" ? "Ground stop" : w.min ? w.min + " min" : "Delays";
     return [what, w.id + (w.s === "program" ? " delay program" : w.s === "delays" && w.why ? ", " + w.why : w.why ? ", " + w.why : "")];
   }
-  if (k === "events") return [c.active ? c.active + " active" : "Clear", String(f.short || "")];
+  if (k === "events") {
+    // A reading can name its own largest event (an earthquake's magnitude) even when nothing counts.
+    if (f.top && num(f.top.mag) != null) return ["M" + f.top.mag.toFixed(1), String(f.top.where || "")];
+    const unit = f.unit ? " " + f.unit + (c.active === 1 ? "" : "s") : " active";
+    return [c.active ? c.active + unit : String(f.idle || "Clear"), String(f.short || "")];
+  }
   if (k === "count") return [commas(num(f.num) || 0, 0), String(f.short || "")];
   return [String(f.value || "–"), String(f.short || "")];
 }

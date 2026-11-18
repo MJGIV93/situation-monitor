@@ -155,6 +155,24 @@ body.wall .tail, body.wall .how { display: none; }
 .domlist { display: flex; flex-direction: column; gap: 12px; }
 .dom { padding: 10px 12px 4px; }
 .domhead { display: flex; align-items: center; gap: 10px; }
+.wx .wxplace { margin-left: auto; font-size: 11.5px; }
+.wxnow { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.sky { display: inline-flex; color: var(--fg); }
+.wxtemp { display: flex; flex-direction: column; min-width: 0; }
+.wxtemp b { font-family: var(--f-display); font-weight: 600; font-size: 40px; line-height: 0.95; }
+.wxtemp span { font-size: 13.5px; color: var(--mid); }
+.wxside { margin-left: auto; text-align: right; font-size: 13px; color: var(--mid); }
+.wxrange { display: flex; gap: 12px; justify-content: flex-end; color: var(--fg); font-weight: 500; }
+.wxrange i { font-style: normal; font-weight: 400; font-size: 11.5px; color: var(--dim); }
+.wxwind { margin-top: 3px; }
+.wxhours { display: flex; gap: 3px; margin-top: 14px; }
+.wxh { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.wxbar { width: 100%; height: 30px; display: flex; align-items: flex-end; border-bottom: 1px solid var(--line); }
+.wxbar i { width: 100%; min-height: 0; border-radius: 1px 1px 0 0; background: var(--stale); }
+.wxbar i.wet { background: var(--mid); }
+.wxt, .wxl { height: 13px; font-size: 11px; line-height: 13px; color: var(--dim); white-space: nowrap; }
+.wxt { color: var(--mid); }
+.wxrain { margin: 6px 0 4px; font-size: 13px; color: var(--mid); }
 .news { padding-bottom: 8px; }
 .news .domhead { justify-content: space-between; align-items: baseline; }
 .news .domhead .small { font-size: 11.5px; }
@@ -445,6 +463,7 @@ body.compact .dial .sparkbox { grid-area: spark; }
     <details class="how">
       <summary>How the scores work</summary>
       <p class="small">Both scores run 0 to 100 and higher is worse. Every reading carries a signal from 0 to 100, which is how much concern it adds, not how big its number is. A falling stock index or a train running late has a high signal. Each reading shows its rule and arithmetic when opened. A domain takes its worst reading plus a fifth of the next two. Domains then stack by weight. Real trouble shows up in several places at once, so a domain acting alone counts at 60% of its weight. It counts in full when two other domains are also active, or when it is severe enough to stand by itself. The points under each dial show how far that score would fall if the domain went quiet.</p>
+      <p class="small">The Weather card's conditions and forecast are context and never change a score. The weather alerts listed on it do count, under Hazards on the Home dial.</p>
       <p class="small">Headlines are context and never change a score. A story is listed when at least two of 12 news outlets have carried it in the past 12 hours, ordered by how many published on it in the past 6. Running stories such as Iran or Russia and Ukraine are gathered into one entry. Each headline links to that outlet's own page.</p>
       <p class="small">0 to 9 is quiet, 10 to 24 watch, 25 to 49 elevated, 50 to 74 disrupted, 75 and up severe. The numbers inside each dial's arc mark where those bands begin.</p>
       <p class="small legendrow"><span><i class="lt"></i>Checked and fine</span><span data-band="2"><i class="lt" style="background: var(--c)"></i>Active, in its band color</span><span><i class="lt ns"></i>Not scored: context, or still building a baseline</span><span><i class="lt dead"></i>Source stale or not answering</span></p>
@@ -463,7 +482,7 @@ body.compact .dial .sparkbox { grid-area: spark; }
         <p class="small" id="meText" role="status"></p>
       </details>
       <details id="errs" hidden><summary></summary><ul id="errList"></ul></details>
-      <span>Military aircraft data from <a href="https://adsb.fi/" target="_blank" rel="noopener noreferrer">adsb.fi</a>. Pizza index from <a href="https://www.pizzint.watch/" target="_blank" rel="noopener noreferrer">PizzINT</a>.</span>
+      <span>Military aircraft data from <a href="https://adsb.fi/" target="_blank" rel="noopener noreferrer">adsb.fi</a>. Pizza index from <a href="https://www.pizzint.watch/" target="_blank" rel="noopener noreferrer">PizzINT</a>. Air quality from <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a>. Weather from the National Weather Service.</span>
       <span>Version 0.1, build __BUILD__. Built from public sources. Code and method: <a href="https://github.com/MJGIV93/situation-monitor" target="_blank" rel="noopener noreferrer">github.com/MJGIV93/situation-monitor</a></span>
     </div>
   </div>
@@ -678,8 +697,9 @@ function instrument(f, c) {
     box.title = "12-month range " + fmt(num(f.lo), f.fmt) + " to " + fmt(num(f.hi), f.fmt) + (med != null ? ", median " + fmt(med, f.fmt) : "");
   } else if (k === "level") {
     box = el("div", "steps");
+    // One segment for each level above the lowest, so a normal reading lights nothing.
     const n = arr(f.steps).length || 5, st = clamp(Math.round(num(f.step) || 0), 0, n - 1);
-    for (let i = 0; i < n; i++) box.appendChild(el("i", i <= st ? "on" : ""));
+    for (let i = 1; i < n; i++) box.appendChild(el("i", i <= st ? "on" : ""));
   } else if (k === "trains") {
     box = el("div", "pips");
     // The direction that matters at this hour, behind an arrow: out in the morning, back after noon.
@@ -709,6 +729,12 @@ function instrument(f, c) {
     const lit = { minor: 1, major: 2, critical: 3 }[f.state] || 0;
     for (let i = 0; i < 3; i++) box.appendChild(el("i", i < lit ? "on" : ""));
     box.title = "Minor, major, critical";
+  } else if (k === "events" && f.rule && /^quake/.test(f.rule)) {
+    // Magnitude 2 to 8, with a marker at the largest quake listed.
+    box = el("div", "range");
+    const mag = f.top && num(f.top.mag);
+    if (mag != null) { const m = el("i"); m.style.left = (clamp((mag - 2) / 6, 0, 1) * 100).toFixed(1) + "%"; box.appendChild(m); }
+    box.title = "Magnitude 2 to 8" + (mag != null ? ", largest M" + mag.toFixed(1) : "");
   } else if (k === "events") {
     box = el("div", "lamp");
   } else {
@@ -839,7 +865,7 @@ function detail(f, c) {
       });
       box.appendChild(ul);
     } else {
-      box.appendChild(el("div", null, "Nothing active."));
+      box.appendChild(el("div", null, String(f.detail || "Nothing active.")));
     }
   }
   const items = arr(f.items).filter((x) => typeof x === "string" && x);
@@ -1069,6 +1095,86 @@ function renderSignals() {
   top.forEach((f) => host.appendChild(row(f, f.scope === "home" ? "HOME" : "USA", "sig")));
   $("signalNone").hidden = top.length > 0 || !state.loaded;
 }
+// Weather: current conditions and the next 12 hours, with the two weather-alert readings underneath.
+const SKY = {
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/>',
+  moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+  cloud: '<path d="M7 18h10a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.1 11.6 3.3 3.3 0 0 0 7 18z"/>',
+  partsun: '<circle cx="8" cy="8" r="3"/><path d="M8 2v1.5M2 8h1.5M3.8 3.8l1 1M12.2 3.8l-1 1"/><path d="M9 20h8.5a3.5 3.5 0 0 0 .5-6.96A5 5 0 0 0 8.3 14 3 3 0 0 0 9 20z"/>',
+  partmoon: '<path d="M11.5 7.5A4.5 4.5 0 0 1 5.6 3 4.5 4.5 0 1 0 11.5 7.5z"/><path d="M9 20h8.5a3.5 3.5 0 0 0 .5-6.96A5 5 0 0 0 8.3 14 3 3 0 0 0 9 20z"/>',
+  rain: '<path d="M7 15h10a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.1 8.6 3.3 3.3 0 0 0 7 15z"/><path d="M8.5 18l-1 3M12.5 18l-1 3M16.5 18l-1 3"/>',
+  snow: '<path d="M7 15h10a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.1 8.6 3.3 3.3 0 0 0 7 15z"/><path d="M8 19h.01M12 21h.01M16 19h.01M10 18h.01M14 18h.01"/>',
+  storm: '<path d="M7 15h10a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.1 8.6 3.3 3.3 0 0 0 7 15z"/><path d="M12.5 15l-2.5 4h3l-1.5 3"/>',
+  fog: '<path d="M7 13h10a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.1 6.6 3.3 3.3 0 0 0 7 13z"/><path d="M4 17h16M6 20.5h12"/>',
+};
+function skyIcon(name, size) {
+  const span = el("span", "sky");
+  // The drawings above are fixed strings from this file, never page data.
+  span.innerHTML = '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (SKY[name] || SKY.cloud) + "</svg>";
+  return span;
+}
+function weatherCard() {
+  const w = state.weather, alerts = state.feeds.filter((f) => f.card === "weather");
+  if (!w && !alerts.length) return null;
+  const card = el("section", "card dom wx"), head = el("div", "domhead");
+  head.appendChild(el("span", "mark"));
+  head.appendChild(el("h3", "ctitle", "Weather"));
+  head.appendChild(el("span", "small wxplace", w ? String(w.place || "") : ""));
+  card.appendChild(head);
+  const worst = alerts.filter((f) => live(f)).reduce((a, f) => Math.max(a, sev(f)), -1);
+  if (worst >= 0) head.setAttribute("data-band", band(worst));
+  if (w && w.now) {
+    const top = el("div", "wxnow");
+    top.appendChild(skyIcon(String(w.now.sky), 46));
+    const big = el("div", "wxtemp");
+    big.appendChild(el("b", null, Math.round(num(w.now.temp)) + "\u00b0"));
+    big.appendChild(el("span", null, String(w.now.text || "")));
+    top.appendChild(big);
+    const side = el("div", "wxside"), hl = (lab, v) => { const s = el("span"); s.appendChild(el("i", null, lab)); s.appendChild(document.createTextNode(" " + Math.round(v) + "\u00b0")); return s; };
+    const hi = num(w.hi) != null ? hl("High", w.hi) : null, lo = num(w.lo) != null ? hl("Low", w.lo) : null, range = el("div", "wxrange");
+    (w.nightFirst ? [lo, hi] : [hi, lo]).forEach((x) => { if (x) range.appendChild(x); });
+    side.appendChild(range);
+    const wind = num(w.now.wind);
+    side.appendChild(el("div", "wxwind", wind ? "Wind " + String(w.now.dir || "") + " " + wind + " mph" + (num(w.now.gust) && w.now.gust > wind + 4 ? ", gusts " + w.now.gust : "") : "Calm"));
+    top.appendChild(side);
+    card.appendChild(top);
+    // The next 12 hours: a bar for each hour's chance of rain, with the temperature every third hour.
+    const hours = arr(w.hours).slice(0, 12);
+    if (hours.length) {
+      const strip = el("div", "wxhours");
+      strip.setAttribute("role", "img");
+      strip.setAttribute("aria-label", String(w.rain || "Next 12 hours"));
+      hours.forEach((h, i) => {
+        const col = el("div", "wxh"), bar = el("i"), pop = clamp(num(h.pop) || 0, 0, 100);
+        col.appendChild(el("span", "wxt", i % 3 === 0 ? Math.round(num(h.temp)) + "\u00b0" : ""));
+        const track = el("div", "wxbar");
+        bar.style.height = Math.max(pop, 0) + "%";
+        if (pop >= 30) bar.className = "wet";
+        track.appendChild(bar);
+        col.appendChild(track);
+        col.appendChild(el("span", "wxl", i % 3 === 0 ? String(h.h || "") : ""));
+        col.title = String(h.h || "") + ": " + Math.round(num(h.temp)) + "\u00b0, " + pop + "% chance of rain";
+        strip.appendChild(col);
+      });
+      card.appendChild(strip);
+      card.appendChild(el("div", "wxrain", String(w.rain || "")));
+    }
+  }
+  if (alerts.length) {
+    // The alert readings count toward Hazards. They live here because this is where you'd look for them.
+    const g = el("div", "grp"), gl = alerts.filter((f) => live(f)), ts = gl.length ? Math.round(tileScore(gl.map(sev))) : null, gw = el("em");
+    g.appendChild(el("span", null, "Alerts"));
+    gw.appendChild(document.createTextNode("signal "));
+    gw.appendChild(el("b", null, ts == null ? "–" : String(ts)));
+    gw.title = "Counts toward Hazards on the Home dial";
+    g.appendChild(gw);
+    if (ts != null) g.setAttribute("data-band", band(ts));
+    card.appendChild(g);
+    alerts.sort((a, b) => sev(b) - sev(a) || String(a.label).localeCompare(String(b.label))).forEach((f) => card.appendChild(row(f, "", "dom")));
+  }
+  return card;
+}
+
 // Headlines: stories several outlets are carrying at once. Context only, never scored.
 // The card is built once and kept, so a story that has been opened stays open across refreshes.
 const newsCard = el("section", "card dom news");
@@ -1116,8 +1222,11 @@ function renderDomains() {
   const host = $("domlist");
   host.textContent = "";
   if (state.news) { renderNews(); if (newsCard.parentNode !== $("newsHost")) $("newsHost").appendChild(newsCard); }
+  const wx = weatherCard();
+  if (wx) host.appendChild(wx);
   TILES.forEach((t) => {
-    const feeds = state.feeds.filter((f) => f.tile === t.id);
+    // Readings shown on a widget card of their own (weather alerts) are left off the domain's tile.
+    const feeds = state.feeds.filter((f) => f.tile === t.id && !f.card);
     if (!feeds.length) return;
     const card = el("section", "card dom"), head = el("div", "domhead");
     let worst = -1;
@@ -1292,6 +1401,7 @@ async function load() {
     state.history = arr(data.history).filter((p) => p && typeof p === "object");
     state.log = arr(data.log).filter((x) => x && x.text);
     state.news = data.news && typeof data.news === "object" ? data.news : null;
+    state.weather = data.weather && typeof data.weather === "object" ? data.weather : null;
     state.errors = arr(data.errors);
     state.trailT = arr(data.trailT);
     state.trails = data.trails && typeof data.trails === "object" ? data.trails : {};
