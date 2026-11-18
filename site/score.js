@@ -401,6 +401,7 @@ export function dial(feeds, scope, now = Date.now()) {
   return {
     score: liveFeeds.length ? Math.round(100 * (1 - keep)) : null,
     parts,
+    tiles,
     live: liveFeeds.length,
     old: liveFeeds.length - liveFeeds.filter((f) => fresh(f, now)).length,
     total: mine.length,

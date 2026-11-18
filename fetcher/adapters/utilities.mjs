@@ -169,10 +169,10 @@ export default [
       const say = (n) => `${n.status === "boil" ? "Boil water" : n.status === "active" ? "In progress" : n.status === "done" ? "Completed" : "Posted"}: ${n.where || n.title.replace(/^Water Repairs in /i, "")} (${etDay(n.at)})`;
       return {
         name: "SMCMUA water notices", label: "SMCMUA water", tile: "power", scope: "home", kind: "level",
-        steps: ["No notice", "Repair nearby", "Repair in town", "Boil water"], sevs: [0, 5, 25, 80],
+        steps: ["No notice", "Nearby", "In town", "Boil water"], sevs: [0, 5, 25, 80],
         ladder: ["nothing under way", "work in a neighboring town", "work in Morristown or Morris Township", "boil-water advisory"],
         step: boil ? 3 : nearMe.length ? 2 : open.length ? 1 : 0,
-        short: open.length ? `${open.length} under way` : "none active",
+        short: open.length ? `${open.length} repair${open.length > 1 ? "s" : ""} under way` : "none active",
         detail: nearMe.length ? "A repair in town usually affects a few streets for a few hours. Check the notice for yours." : "",
         items: recent.map(([, n]) => say(n)).slice(0, 6),
         note: "From the utility's alerts page and each notice it links to. Checked every 10 minutes.",
