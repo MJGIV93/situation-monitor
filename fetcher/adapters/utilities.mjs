@@ -36,6 +36,7 @@ function kubra({ id, name, label, note, stormcenter, view, customers, source }) 
         short: `${short(out)} out`,
         detail: `${commas(out)} of ${commas(served)} customers without power, or ${pct(share)}, across ${commas(best.t.total_outages ?? 0)} outages.`,
         dataAt: best.at,
+        track: { out, served, outages: best.t.total_outages ?? 0 },
       };
     },
   };
@@ -80,6 +81,7 @@ export default [
         step: total >= 10e6 ? 4 : total >= 3e6 ? 3 : total >= 1e6 ? 2 : total >= 250e3 ? 1 : 0,
         short: `${short(total)} out`,
         detail: `${commas(total)} customers out across ${states.length} reporting states.` + (top.length ? ` Largest: ${top.join(" and ")}.` : ""),
+        track: { out: total, states: states.length },
       };
     },
   },
@@ -129,6 +131,7 @@ export default [
         short: nj.length ? `${nj.length} for NJ` : drills ? "drill posted" : `${posts.length} posted`,
         detail: `${posts.length} active postings: ${nj.length} touching New Jersey zones, ${elsewhere.length} elsewhere, ${drills} drill.`,
         items: nj.slice(0, 4).map((p) => `${p.priority}: ${p.type} (${p.regions})`),
+        track: { step, posts: posts.length, nj: nj.length, drills },
       };
     },
   },
@@ -151,6 +154,7 @@ export default [
         source: "https://www.smcmua.org/",
         state: major ? "major" : minor ? "minor" : "ok",
         short: hit ? hit[0].toLowerCase() : "no notice",
+        track: { notice: major ? 2 : minor ? 1 : 0 },
       };
     },
   },

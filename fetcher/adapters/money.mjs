@@ -129,6 +129,7 @@ export default [
         name: "Fed payment services", label: "Fed payments", tile: "money", scope: "national", kind: "status",
         state: disrupted >= 3 ? "critical" : disrupted ? "major" : issues ? "minor" : "ok",
         short: `${icons.length - disrupted - issues} of ${icons.length}`,
+        track: { disrupted, issues },
         note: disrupted || issues ? `${disrupted} services disrupted and ${issues} with an issue, out of ${icons.length} including Fedwire, FedACH and FedNow.` : "Fedwire, FedACH, FedNow, Check 21 and the rest are all at normal operations.",
         source: "https://www.frbservices.org/service-status/",
       };
@@ -149,6 +150,7 @@ export default [
         name: "Payment rails (Plaid and PayPal)", label: "Payment rails", tile: "money", scope: "national", kind: "status",
         state: rank[Math.max(rank.indexOf(plaid.state), rank.indexOf(paypal))],
         short: items.length ? `${items.length} flagged` : "Plaid, PayPal",
+        track: { plaid: plaid.incidents.length, paypal: down.length },
         note: "One merged reading. Plaid connects apps to most US banks, so a bank-wide login problem tends to show here.",
         items: items.slice(0, 4),
         source: "https://status.plaid.com/",

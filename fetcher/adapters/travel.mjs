@@ -35,7 +35,7 @@ function faaDoc(f, only) {
   const say = (list, what) => list.map(([a, d]) => `${a} ${what}${d.max ? ", up to " + d.max : ""}${d.reason ? " (" + d.reason + ")" : ""}`);
   const lines = [...say(stops, "ground stop"), ...say(programs, "delay program"), ...say(delays, "delays")];
   const n = new Set([...delays, ...programs, ...stops].map(([a]) => a)).size;
-  return { step, n, lines };
+  return { step, n, lines, track: { step, delays: delays.length, programs: programs.length, stops: stops.length } };
 }
 
 /* ---- NJ Transit ---- */
@@ -92,13 +92,13 @@ export default [
           note: "The FAA updates this feed about every minute.",
           step: nat.step, short: nat.n ? `${nat.n} airport${nat.n > 1 ? "s" : ""}` : "none posted",
           detail: nat.n ? "" : "No delays, delay programs or ground stops posted.",
-          items: nat.lines.slice(0, 8),
+          items: nat.lines.slice(0, 8), track: nat.track,
         },
         {
           ...base, id: "faa-nyc", name: "EWR / JFK / LGA", label: "NYC airports", scope: "home", note: "",
           step: nyc.step, short: "EWR JFK LGA",
           detail: nyc.n ? "" : "Nothing posted for Newark, JFK or LaGuardia.",
-          items: nyc.lines,
+          items: nyc.lines, track: nyc.track,
         },
       ];
     },
@@ -122,17 +122,23 @@ export default [
         tile: "air", scope: "home", kind: "trains", suspended: me.suspended || undefined, lineDelay: me.delay || undefined,
         items: me.lineWide.slice(0, 3).map((m) => clip(m, 180)),
       };
+      const tally = (dirs) => {
+        const all = dirs.flatMap((d) => d.trains);
+        return { trains: all.length, late: all.filter((t) => t.s === "late").length, cancelled: all.filter((t) => t.s === "cancelled").length, maxLate: Math.max(0, ...all.map((t) => t.d ?? 0)), lineDelay: me.delay, suspended: me.suspended ? 1 : 0 };
+      };
+      const penn = [{ to: "To Penn from Morristown", trains: from(/New York/i) }, { to: "From Penn toward Morristown", trains: outbound(ny) }];
+      const hoboken = [{ to: "To Hoboken from Morristown", trains: from(/Hoboken/i) }, { to: "From Hoboken toward Morristown", trains: outbound(hb) }];
       const necWorst = nec.suspended ? "critical" : nec.delay >= 30 ? "major" : nec.lineWide.length ? "minor" : "ok";
       return [
         {
           ...shared, id: "njt-me", name: "NJ Transit, Morristown and NY Penn", label: "Penn trains",
-          dirs: [{ to: "To Penn from Morristown", trains: from(/New York/i) }, { to: "From Penn toward Morristown", trains: outbound(ny) }],
+          dirs: penn, track: tally(penn),
           note: "From NJ Transit's live departure boards and line alerts." + (banner ? " Station notice: " + clip(banner, 160) : ""),
           source: "https://www.njtransit.com/dv-to/Morristown",
         },
         {
           ...shared, id: "njt-hob", name: "NJ Transit, Morristown and Hoboken", label: "Hoboken trains",
-          dirs: [{ to: "To Hoboken from Morristown", trains: from(/Hoboken/i) }, { to: "From Hoboken toward Morristown", trains: outbound(hb) }],
+          dirs: hoboken, track: tally(hoboken),
           note: "From the live departure boards. PATH covers Hoboken to 33rd St and has its own reading.",
           source: "https://www.njtransit.com/dv-to/Hoboken",
         },
@@ -142,6 +148,7 @@ export default [
           short: nec.suspended ? "suspended" : nec.delay ? `${nec.delay} min delays` : nec.lineWide.length ? `${nec.lineWide.length} alert${nec.lineWide.length > 1 ? "s" : ""}` : "no alerts",
           note: "Shares the Penn Station tunnels with your line, so trouble here usually reaches the Morristown Line.",
           items: nec.live.slice(0, 3).map((m) => clip(m, 180)),
+          track: { alerts: nec.live.length, lineWide: nec.lineWide.length, delay: nec.delay, suspended: nec.suspended ? 1 : 0 },
           source: "https://www.njtransit.com/travel-alerts-to?tab=Rail&line=NEC",
         },
       ];
@@ -175,6 +182,7 @@ export default [
         name: "Subway, Penn Station to the office", label: "Subway", tile: "air", scope: "home", kind: "lines",
         lines: MY_LINES.map((id) => ({ id, s: state[id].s })),
         short: `${citywide} citywide`,
+        track: { citywide, ...Object.fromEntries(MY_LINES.map((l) => [l, state[l].s === "suspended" ? 2 : state[l].s === "delays" ? 1 : 0])) },
         note: "From the MTA's official alert feed. Planned work is left out.",
         items: [...new Set(hit.map((l) => clip(state[l].text.replace(/\[(\w+)\]/g, "$1"), 180)))].slice(0, 3),
         source: "https://www.mta.info/alerts",
@@ -196,6 +204,7 @@ export default [
         short: `${open.length} incident${open.length === 1 ? "" : "s"}`,
         note: "From the Port Authority's incident feed. Your backup route across the Hudson.",
         items: texts.slice(0, 3),
+        track: { open: open.length },
         source: "https://www.panynj.gov/path/en/alerts.html",
       };
     },

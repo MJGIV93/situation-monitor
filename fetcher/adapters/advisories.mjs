@@ -93,6 +93,7 @@ export default [
         name: "NRC nuclear plant status", label: "Nuclear plants", tile: "gov", scope: "national", kind: "status",
         state: worst,
         short: `${full} of ${units.length} full`,
+        track: { full, offline: off.length, reports: classes.length, declared: declared.length },
         note: `${off.length} reactors offline. ${classes.length} event reports today, ${declared.length ? declared.length + " with a declared emergency class (" + [...new Set(declared)].join(", ") + ")" : "none declaring an emergency"}. Nearest plants: ${nearby.join(", ")}.`,
         source: "https://www.nrc.gov/reading-rm/doc-collections/event-status/reactor-status/ps.html",
       };

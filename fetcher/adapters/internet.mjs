@@ -23,6 +23,7 @@ function statusDoc({ id, host, name, label, source, note = "" }) {
         short: n ? `${n} incident${n > 1 ? "s" : ""}` : "no incidents",
         note: note || (s.flagged.length ? `${s.flagged.length} of ${s.total} components flagged.` : ""),
         items: s.incidents.slice(0, 4).map((i) => clip(i.name, 120)),
+        track: { state: s.state, incidents: n, flagged: s.flagged.length },
       };
     },
   };
@@ -55,6 +56,7 @@ function ioda({ id, asn, name, label, note }) {
         ladder: ["over 90% reachable", "75% to 90%", "40% to 75%", "under 40%"],
         step: worst >= 0.9 ? 0 : worst >= 0.75 ? 1 : worst >= 0.4 ? 2 : 3,
         short: `${Math.round(worst * 100)}% reach`,
+        track: { ping: ping == null ? null : Math.round(ping * 1000) / 1000, bgp: bgp == null ? null : Math.round(bgp * 1000) / 1000 },
         detail: [ping != null && `Responding address blocks are at ${Math.round(ping * 100)}% of the 24-hour median.`, bgp != null && `Routes announced are at ${Math.round(bgp * 100)}%.`].filter(Boolean).join(" "),
       };
     },
@@ -86,6 +88,7 @@ export default [
         name: "Apple system status", label: "Apple", tile: "net", scope: "national", kind: "status",
         state: outages.length && affected >= 10 ? "critical" : outages.length ? "major" : events.length ? "minor" : "ok",
         short: `${events.length} open`,
+        track: { open: events.length, outages: outages.length, services: affected },
         note: `${data.services.length} services tracked. Resolved events are left out.`,
         items: events.slice(0, 4).map((e) => clip(`${e.type}: ${[...e.services].slice(0, 3).join(", ")}${e.services.size > 3 ? " and " + (e.services.size - 3) + " more" : ""}`, 140)),
         source: "https://www.apple.com/support/systemstatus/",
@@ -106,6 +109,7 @@ export default [
         name: "Microsoft service health", label: "Microsoft 365", tile: "net", scope: "national", kind: "status",
         state: adminBad || azureBad || down.length >= 3 ? "major" : down.length ? "minor" : "ok",
         short: items.length ? `${items.length} flagged` : "all products",
+        track: { flagged: items.length },
         note: "Microsoft's public status page, covering Microsoft 365, Azure and consumer products.",
         items: items.slice(0, 4),
         source: "https://status.cloud.microsoft/",

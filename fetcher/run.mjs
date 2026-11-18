@@ -129,8 +129,15 @@ export async function runOnce({ get = httpGet, now = Date.now(), state = {}, eve
     errors,
   };
   const summary = { t: iso, event, ms: Date.now() - started, ran: due.length, adapters: ADAPTERS.length, readings: feeds.length, ...scores, failed: errors.map((e) => e.id) };
-  // One compact line per run for the long-term archive: both dials and every non-zero reading score.
-  const archive = { t: iso, n: scores.national, h: scores.home, live: feeds.filter((f) => live(f, now)).length, s: Object.fromEntries(feeds.filter((f) => live(f, now) && f._c.sev > 0).map((f) => [f.id, f._c.sev])) };
+  // One compact line per run for the long-term archive: both dials, every non-zero
+  // reading score, and the raw numbers behind each reading that was refreshed this run.
+  // Most sources only publish the present moment, so this is the only record of what normal looks like.
+  const raw = (f) => f.track ?? (f.kind === "price" ? { v: f.num } : f.kind === "events" ? { n: (f.events ?? []).length } : f.kind === "count" ? { n: f.num } : null);
+  const archive = {
+    t: iso, n: scores.national, h: scores.home, live: feeds.filter((f) => live(f, now)).length,
+    s: Object.fromEntries(feeds.filter((f) => live(f, now) && f._c.sev > 0).map((f) => [f.id, f._c.sev])),
+    v: Object.fromEntries(feeds.filter((f) => f.checkedAt === iso && raw(f)).map((f) => [f.id, raw(f)])),
+  };
   return { latest, state, summary, archive };
 }
 
