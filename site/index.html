@@ -115,12 +115,46 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: 26px; line-heig
 .drivers li { display: flex; justify-content: space-between; gap: 8px; color: var(--dim); }
 .drivers b { font-weight: 500; color: var(--fg); }
 .spark { display: block; width: 100%; height: 30px; color: var(--c, var(--dim)); }
-.sparkbox .small { display: block; font-size: 11px; margin-top: 2px; }
+.sparkbox { display: none; }
 .signals, .latest { padding: 14px 14px 8px; }
 .signals .ctitle, .latest .ctitle { margin-bottom: 6px; }
 .latest li { padding: 7px 0; border-top: 1px solid var(--line); font-size: 14px; }
 .latest li time { display: block; font-size: 11.5px; color: var(--dim); }
 .latest details summary { cursor: pointer; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; color: var(--dim); }
+
+/* route strip and timeline */
+.mid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.route, .tline { padding: 12px 14px 10px; }
+.rline { display: flex; align-items: stretch; margin-top: 4px; }
+.rstop, .rseg { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.rstop { flex: none; width: 12px; }
+.rseg { flex: 1 1 0; appearance: none; -webkit-appearance: none; background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+.rseg:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.rtop { height: 34px; max-width: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding-bottom: 4px; font-size: 11.5px; line-height: 1.2; color: var(--dim); white-space: nowrap; overflow: hidden; }
+.rtop b { font-weight: 600; color: var(--mid); }
+.rseg[data-band] .rtop span { color: var(--c); }
+.rbar { display: block; width: 100%; height: 4px; margin: 4px 0; background: var(--stale); }
+.rseg[data-band] .rbar { height: 6px; margin: 3px 0; background: var(--c); }
+.rseg.off .rbar { background: repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 10px); }
+.rdot { display: block; flex: none; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--mid); background: var(--surface); }
+.rbot { height: 16px; margin-top: 4px; font-size: 11.5px; color: var(--dim); white-space: nowrap; }
+.rstop:first-child .rbot { align-self: flex-start; }
+.rstop:last-child .rbot { align-self: flex-end; }
+.rnote { display: block; margin-top: 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; }
+.thead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 14px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--dim); }
+.legend i { display: inline-block; width: 18px; margin-right: 5px; vertical-align: middle; border-top: 2px solid var(--fg); }
+.legend i.h { border-top: 2px dashed var(--dim); }
+.legend i.m { width: 2px; height: 9px; border: 0; background: var(--b2); }
+.tchart { position: relative; margin-top: 8px; }
+.tchart svg { display: block; width: 100%; height: 110px; }
+.tchart .ylab { position: absolute; right: 0; font-size: 10.5px; color: var(--dim); transform: translateY(-110%); }
+@media (max-width: 719px) { .rtop span { display: none; } .rbot { font-size: 10.5px; } }
+@media (min-width: 1100px) { .mid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+body.wall .tail, body.wall .how { display: none; }
+.wallbtn { appearance: none; -webkit-appearance: none; padding: 5px 10px; border: 1px solid var(--line); border-radius: 2px; background: none; color: var(--dim); font: inherit; font-size: 12px; cursor: pointer; }
+.wallbtn:hover, .wallbtn[aria-pressed="true"] { color: var(--fg); border-color: var(--dim); }
+@media (max-width: 1099px) { .wallbtn { display: none; } }
 
 /* domains */
 .domlist { display: flex; flex-direction: column; gap: 12px; }
@@ -283,6 +317,7 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: 26px; line-heig
     </div>
     <div class="status"><span class="dot" id="dot"></span><span><span id="statusText">Connecting</span><span id="nextText"></span></span></div>
     <div class="clocks"><span><b id="clock"></b></span><span><b id="zulu"></b></span></div>
+    <button type="button" class="wallbtn" id="wallBtn" aria-pressed="false" title="Full screen, cycling through whatever is active">Wall mode</button>
   </div>
 </header>
 <div class="wrap">
@@ -313,6 +348,20 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: 26px; line-heig
       <h3 class="ctitle">Log</h3>
       <ul id="latestTop"></ul>
       <details id="latestMore" hidden><summary></summary><ul id="latestRest"></ul></details>
+    </section>
+  </div>
+
+  <div class="mid">
+    <section class="card route" aria-label="Commute route">
+      <h3 class="ctitle">Route</h3>
+      <div id="routeBody"></div>
+    </section>
+    <section class="card tline" aria-label="Scores over the past 24 hours">
+      <div class="thead">
+        <h3 class="ctitle">Past 24 hours</h3>
+        <span class="legend"><span><i></i>USA</span><span><i class="h"></i>Home</span><span><i class="m"></i>log entry</span></span>
+      </div>
+      <div id="tlineBody"></div>
     </section>
   </div>
 
@@ -688,6 +737,119 @@ function row(f, tag) {
   return d;
 }
 
+function openFrom(id, node) {
+  if (sel === id) { closePanel(); return; }
+  // Open on the side away from what was clicked, so it stays in view.
+  const r = node.getBoundingClientRect();
+  selSide = r.left + r.width / 2 > window.innerWidth / 2 ? "left" : "right";
+  sel = id;
+  render();
+}
+
+/* ---- route strip: the commute as one line, each leg colored by its reading ---- */
+const feedById = (id) => state.feeds.find((f) => f.id === id) || null;
+function routeLine(parts) {
+  const line = el("div", "rline"), narrow = !(wide && wide.matches);
+  parts.forEach((p) => {
+    if (narrow && p.short) p = Object.assign({}, p, p.stop ? { stop: p.short } : { label: p.short });
+    if (p.stop) {
+      const s = el("div", "rstop");
+      s.appendChild(el("span", "rtop"));
+      s.appendChild(el("i", "rdot"));
+      s.appendChild(el("span", "rbot", p.stop));
+      line.appendChild(s);
+      return;
+    }
+    const f = feedById(p.id);
+    let b = -1;
+    (p.ids || [p.id]).forEach((id) => { const x = feedById(id); if (x && live(x)) b = Math.max(b, band(sev(x))); });
+    const seg = el("button", "rseg" + (b < 0 ? " off" : ""));
+    seg.type = "button";
+    seg.style.flexGrow = p.grow || 1;
+    seg.setAttribute("aria-label", (p.label || p.name) + (f ? ": " + rowText(f, f._c).filter(Boolean).join(", ") : ": no reading"));
+    if (b > 0) seg.setAttribute("data-band", b);
+    const top = el("span", "rtop");
+    if (p.label) top.appendChild(el("b", null, p.label));
+    if (p.label && f && live(f)) top.appendChild(el("span", null, p.text(f)));
+    seg.appendChild(top);
+    seg.appendChild(el("i", "rbar"));
+    seg.appendChild(el("span", "rbot"));
+    seg.addEventListener("click", () => openFrom(p.id, seg));
+    line.appendChild(seg);
+  });
+  return line;
+}
+function renderRoute() {
+  const host = $("routeBody");
+  host.textContent = "";
+  const sub = (f) => { const t = rowText(f, f._c); return t[1] || t[0]; };
+  const main = (f) => rowText(f, f._c)[0];
+  host.appendChild(routeLine([
+    { stop: "Morristown" },
+    { id: "njt-me", label: "Morristown Line", grow: 3, text: sub },
+    { stop: "Newark Broad St", short: "Newark" },
+    { id: "njt-me", name: "Morristown Line", grow: 1.3 },
+    { stop: "Secaucus" },
+    { id: "njt-nec", ids: ["njt-me", "njt-nec"], label: "Hudson tunnels", short: "Tunnels", grow: 1.7, text: sub },
+    { stop: "Penn" },
+    { id: "subway", label: "2 3 A C", grow: 2, text: main },
+    { stop: "Wall St" },
+  ]));
+  host.appendChild(el("span", "rnote small", "Backup"));
+  host.appendChild(routeLine([
+    { stop: "Morristown" },
+    { id: "njt-hob", label: "Hoboken trains", grow: 3, text: sub },
+    { stop: "Hoboken" },
+    { id: "path", label: "PATH", grow: 2, text: sub },
+    { stop: "World Trade Center", short: "WTC" },
+  ]));
+}
+
+/* ---- timeline: both scores over the past day, with log entries marked ---- */
+function renderTimeline() {
+  const host = $("tlineBody");
+  host.textContent = "";
+  const end = Date.now(), dayAgo = end - 24 * 3600 * 1000;
+  const pts = state.history.map((h) => ({ t: Date.parse(h.t), n: h.national, h: h.home })).filter((p) => p.t >= dayAgo && !isNaN(p.t));
+  if (pts.length < 2) { host.appendChild(el("p", "small", "This fills in as the monitor records its first runs.")); return; }
+  const start = end - pts[0].t > 20 * 3600 * 1000 ? dayAgo : pts[0].t;
+  const peak = Math.max.apply(null, pts.map((p) => Math.max(p.n || 0, p.h || 0)));
+  const top = Math.min(100, Math.max(50, Math.ceil((peak + 8) / 25) * 25));
+  const x = (t) => ((t - start) / (end - start)) * 1000, y = (v) => 104 - (v / top) * 96;
+  const box = el("div", "tchart");
+  const svg = svgEl("svg", null, { viewBox: "0 0 1000 110", preserveAspectRatio: "none", role: "img", "aria-label": "USA and Home scores over the past day" });
+  [10, 25, 50, 75].filter((v) => v < top).forEach((v) => {
+    svg.appendChild(svgEl("path", null, { d: "M0 " + y(v).toFixed(1) + " L1000 " + y(v).toFixed(1), fill: "none", stroke: "var(--line)", "stroke-width": "1", "vector-effect": "non-scaling-stroke" }));
+    const lab = el("span", "ylab", String(v));
+    lab.style.top = ((y(v) / 110) * 100).toFixed(1) + "%";
+    box.appendChild(lab);
+  });
+  const path = (key) => pts.filter((p) => p[key] != null).map((p, i) => (i ? "L" : "M") + x(p.t).toFixed(1) + " " + y(p[key]).toFixed(1)).join(" ");
+  svg.appendChild(svgEl("path", null, { d: path("h"), fill: "none", stroke: "var(--dim)", "stroke-width": "1.6", "stroke-dasharray": "5 4", "stroke-linejoin": "round", "vector-effect": "non-scaling-stroke" }));
+  svg.appendChild(svgEl("path", null, { d: path("n"), fill: "none", stroke: "var(--fg)", "stroke-width": "1.8", "stroke-linejoin": "round", "vector-effect": "non-scaling-stroke" }));
+  state.log.forEach((e) => {
+    const t = Date.parse(e.t);
+    if (isNaN(t) || t < start || e.id === "start") return;
+    svg.appendChild(svgEl("path", null, { d: "M" + x(t).toFixed(1) + " 104 L" + x(t).toFixed(1) + " 110", fill: "none", stroke: e.dir === "down" ? "var(--dim)" : "var(--b2)", "stroke-width": "2", "vector-effect": "non-scaling-stroke" }));
+  });
+  box.insertBefore(svg, box.firstChild);
+  host.appendChild(box);
+  const axis = el("div", "axis"), hours = (end - start) / 3600000, step = hours > 14 ? 3 : hours > 5 ? 2 : 1;
+  axis.style.marginTop = "2px";
+  const first = new Date(start);
+  first.setMinutes(0, 0, 0);
+  for (let t = first.getTime() + 3600000; t < end; t += 3600000) {
+    const h = Number(new Date(t).toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false })) % 24;
+    if (h % step) continue;
+    const px = x(t) / 10;
+    if (px < 3 || px > 96) continue;
+    const lab = el("span", null, (h % 12 || 12) + (h < 12 ? " AM" : " PM"));
+    lab.style.left = px.toFixed(1) + "%";
+    axis.appendChild(lab);
+  }
+  host.appendChild(axis);
+}
+
 /* ---- detail panel ---- */
 function renderPanel() {
   const panel = $("panel"), f = sel && state.feeds.find((x) => x.id === sel);
@@ -882,6 +1044,8 @@ function render() {
   renderDial("dialNat", "national");
   renderDial("dialHome", "home");
   renderSignals();
+  renderRoute();
+  renderTimeline();
   renderDomains();
   renderPanel();
   if (focus) { const again = document.querySelector(focus.host + ' .row[data-id="' + focus.id + '"]'); if (again) again.focus({ preventScroll: true }); }
@@ -946,7 +1110,46 @@ if (wide && wide.addEventListener) wide.addEventListener("change", render);
 $("panelClose").addEventListener("click", closePanel);
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePanel(); });
 // A click anywhere outside the panel and the rows closes it.
-document.addEventListener("click", (e) => { if (sel && !e.target.closest("#panel") && !e.target.closest(".row")) closePanel(); });
+document.addEventListener("click", (e) => { if (sel && !e.target.closest("#panel") && !e.target.closest(".row") && !e.target.closest(".rseg") && !e.target.closest("#wallBtn")) closePanel(); });
+
+// Arrow keys step through the readings while the panel is open.
+document.addEventListener("keydown", (e) => {
+  if (!sel || (e.key !== "ArrowDown" && e.key !== "ArrowUp") || e.target.closest("input, textarea, select")) return;
+  const ids = Array.prototype.map.call(document.querySelectorAll("#domlist .row"), (r) => r.dataset.id);
+  const i = ids.indexOf(sel);
+  if (i < 0) return;
+  e.preventDefault();
+  sel = ids[(i + (e.key === "ArrowDown" ? 1 : ids.length - 1)) % ids.length];
+  render();
+  const r = document.querySelector('#domlist .row[data-id="' + sel + '"]');
+  if (r) r.scrollIntoView({ block: "nearest" });
+});
+
+// Wall mode: full screen for a spare monitor, with the panel cycling through whatever is active.
+let wallTimer = null;
+function wallStep() {
+  const active = state.feeds.filter((f) => live(f) && sev(f) >= 10).sort((a, b) => sev(b) - sev(a)).map((f) => f.id);
+  if (!active.length) { if (sel) { sel = null; render(); } return; }
+  sel = active[(active.indexOf(sel) + 1) % active.length];
+  selSide = "right";
+  render();
+}
+function setWall(on) {
+  document.body.classList.toggle("wall", on);
+  $("wallBtn").setAttribute("aria-pressed", on ? "true" : "false");
+  $("wallBtn").textContent = on ? "Exit wall mode" : "Wall mode";
+  clearInterval(wallTimer);
+  wallTimer = null;
+  if (on) {
+    if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+    wallStep();
+    wallTimer = setInterval(wallStep, 15000);
+  } else if (document.fullscreenElement && document.exitFullscreen) {
+    document.exitFullscreen().catch(() => {});
+  }
+}
+$("wallBtn").addEventListener("click", () => setWall(!document.body.classList.contains("wall")));
+document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && document.body.classList.contains("wall")) setWall(false); });
 </script>
 </body>
 </html>
