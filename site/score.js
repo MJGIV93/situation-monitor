@@ -168,10 +168,10 @@ function trainCalc(f) {
   const board = Math.min(85, pts);
   const lineDelay = num(f.lineDelay), line = lineDelay ? interp(LINE_DELAY_PTS, lineDelay) : 0;
   r.sev = f.suspended ? 90 : Math.max(board, line);
-  r.lines.push("Board: " + Math.round(board) + ". Counts the next three trains each way. A late train scores by how late it is (12 at 10 minutes, 20 at 20, 30 at 40) and a cancellation scores 30." + (late || canc ? " Now: " + late + " late, " + canc + " cancelled." : ""));
-  if (lineDelay) r.lines.push("Line alert: " + Math.round(line) + ". NJ Transit is reporting delays of up to " + lineDelay + " minutes on the line.");
-  if (f.suspended) r.lines.push("Service is suspended, which scores 90.");
-  else r.lines.push("The signal is the higher of the board and any line-wide delay alert.");
+  r.lines.push("The next three trains each way are counted. A late train adds by how late it is (12 at 10 minutes, 20 at 20, 30 at 40) and a cancelled train adds 30." + (late || canc ? " Right now that comes to " + Math.round(board) + "." : ""));
+  if (lineDelay) r.lines.push("NJ Transit is also reporting delays of up to " + lineDelay + " minutes across the line, which counts " + Math.round(line) + ".");
+  if (f.suspended) r.lines.push("Service is suspended, which counts 90.");
+  else r.lines.push("A delay alert for the whole line counts on its own, and the higher of the two is used.");
   r.why = f.suspended ? "Service is suspended." : late || canc ? late + " late and " + canc + " cancelled among the next trains" + (lineDelay ? ", with line-wide delays of up to " + lineDelay + " minutes." : ".") : lineDelay ? "NJ Transit reports delays of up to " + lineDelay + " minutes on the line." : trainList(f).length ? "The next trains are on time and there's no line-wide alert." : "No trains are due soon and there's no line-wide alert.";
   return r;
 }
@@ -417,19 +417,30 @@ export function dial(feeds, scope, now = Date.now()) {
     const tf = liveFeeds.filter((f) => f.tile === t.id);
     if (tf.length) tiles.push({ id: t.id, tile: tileScore(tf.map((f) => f._c.sev)) });
   });
-  const parts = [];
-  let keep = 1;
-  tiles.forEach((t) => {
-    const share = corroboration(t.tile, tiles.filter((x) => x !== t).map((x) => x.tile));
-    const c = ((w[t.id] || 0) * t.tile * share) / 100;
-    keep *= 1 - c;
-    if (c >= 0.005) parts.push({ id: t.id, c, share });
+  // Each domain's chance of trouble is its weight times its score times its share, and the dial combines them.
+  const combine = (list) => {
+    let k = 1;
+    const cs = list.map((t) => {
+      const share = corroboration(t.tile, list.filter((x) => x !== t).map((x) => x.tile));
+      const c = ((w[t.id] || 0) * t.tile * share) / 100;
+      k *= 1 - c;
+      return { c, share };
+    });
+    return { keep: k, cs };
+  };
+  const all = combine(tiles), keep = all.keep, parts = [];
+  // A domain's points: how far the score would fall if that domain alone went quiet. Going quiet
+  // also withdraws the backing it lends the other domains, so the dial is worked out again without it.
+  tiles.forEach((t, i) => {
+    const { c, share } = all.cs[i];
+    if (c < 0.005) return;
+    const quiet = combine(tiles.map((x) => (x === t ? { ...x, tile: 0 } : x))).keep;
+    parts.push({ id: t.id, c, share, pts: 100 * (quiet - keep) });
   });
-  // A domain's points: how far the score would fall if that domain alone went quiet.
-  parts.forEach((p) => { p.pts = 100 * (1 - keep) - 100 * (1 - keep / Math.max(1 - p.c, 1e-9)); });
   parts.sort((a, b) => b.pts - a.pts);
   return {
     score: liveFeeds.length ? Math.round(100 * (1 - keep)) : null,
+    exact: liveFeeds.length ? 100 * (1 - keep) : null,
     parts,
     tiles,
     live: liveFeeds.length,
@@ -439,6 +450,17 @@ export function dial(feeds, scope, now = Date.now()) {
 }
 
 /* ---- the two-part text shown on a row, also used for the log ---- */
+// Whether it's past noon Eastern, when the trip that matters is the one home.
+export function afterNoon(now) {
+  const h = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", hourCycle: "h23" }).format(new Date(now == null ? Date.now() : now)));
+  return h >= 12;
+}
+// Train readings list the outbound direction first, then the return.
+export function nextTrain(f, now) {
+  const dirs = arr(f.dirs), back = afterNoon(now), order = back ? [1, 0] : [0, 1];
+  for (const i of order) { const t = arr(dirs[i] && dirs[i].trains)[0]; if (t) return { t: String(t.t), back: i === 1 }; }
+  return null;
+}
 export function rowText(f, c, now = Date.now()) {
   const k = f.kind;
   if (f.ok === false) return ["No reading", ""];
@@ -451,7 +473,9 @@ export function rowText(f, c, now = Date.now()) {
     if (f.suspended) return ["Suspended", "line alert"];
     if (late || canc) return [late ? "Delays" : "Cancelled", late + canc + " of " + all.length + " trains"];
     if (f.lineDelay) return ["Delays", "up to " + f.lineDelay + " min"];
-    return all.length ? ["On time", all.length === 1 ? "next train" : "next " + all.length + " trains"] : ["No trains", "none due soon"];
+    // The next departure in the direction that matters at this hour: out in the morning, home after noon.
+    const n = nextTrain(f, now);
+    return n ? ["On time", (n.back ? "\u2190 " : "\u2192 ") + n.t] : ["No trains", "none due soon"];
   }
   if (k === "lines") {
     const hit = arr(f.lines).filter((l) => l && l.s && l.s !== "ok");
@@ -459,11 +483,12 @@ export function rowText(f, c, now = Date.now()) {
     if (f.system && num(f.system.suspended) >= 8) return ["Systemwide", f.system.suspended + " lines out"];
     if (hit.some((l) => l.s === "suspended")) return ["Suspended", names("suspended")];
     if (hit.some((l) => l.s === "part")) return ["Partial", names("part")];
-    return hit.length ? ["Delays", names("delays")] : ["Normal", arr(f.lines).map((l) => l.id).join(", ")];
+    // Delays are an everyday event, so the headline stays "Running" until service is actually cut.
+    return ["Running", hit.length ? "delays: " + arr(f.lines).filter((l) => l && l.s === "delays").map((l) => l.id).join(", ") : "no alerts"];
   }
   if (k === "airports") {
     const w = worstAirport(f);
-    if (!w || w.s === "ok" || !w.s) return ["On time", f.planned ? "program possible" : arr(f.airports).map((a) => a.id).join(" ")];
+    if (!w || w.s === "ok" || !w.s) return ["On time", f.planned ? "program possible" : "all three"];
     const what = w.s === "closed" ? "Closed" : w.s === "stop" ? "Ground stop" : w.min ? w.min + " min" : "Delays";
     return [what, w.id + (w.s === "program" ? " delay program" : w.s === "delays" && w.why ? ", " + w.why : w.why ? ", " + w.why : "")];
   }

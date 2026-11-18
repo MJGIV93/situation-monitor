@@ -8,7 +8,7 @@ const FAA_STEPS = ["Normal", "Scattered", "Regional", "Widespread", "Nationwide"
 const FAA_SEVS = [0, 5, 15, 40, 95];
 const FAA_LADDER = ["no hub held, and delays at fewer than three", "one or two hubs held, or delays at three or more", "three to five hubs held", "six to eleven hubs held", "twelve or more hubs held"];
 const HUBS = "ATL BOS BWI CLT DCA DEN DFW DTW EWR FLL HNL IAD IAH JFK LAS LAX LGA MCO MDW MEM MIA MSP ORD PHL PHX SAN SEA SFO SLC TPA".split(" ");
-const NYC = [["EWR", "Newark"], ["JFK", "JFK"], ["LGA", "LaGuardia"]];
+const NYC = [["EWR", "Newark"], ["JFK", "Kennedy"], ["LGA", "LaGuardia"]];
 
 // "1 hour and 5 minutes", "16 minutes", "45" -> minutes
 function minutes(v) {
@@ -85,7 +85,7 @@ function trainState(item) {
   if (/\blate\b|delay/i.test(text)) return { s: "late" };
   return { s: "ok" };
 }
-const toTrain = (i) => ({ t: i.departureDate, n: i.trainID, ...trainState(i) });
+const toTrain = (i) => ({ t: i.departureDate, n: i.trainID, k: /^\w{1,3}$/.test(String(i.track ?? "").trim()) ? String(i.track).trim() : undefined, ...trainState(i) });
 function lineAlerts(system, abbr) {
   const live = system.filter((s) => s.service === "Rail" && s.abbreviation === abbr && String(s.advisoryAlert) === "0").map((s) => strip(s.message ?? ""));
   let delay = 0;
@@ -132,8 +132,9 @@ export default [
           detail: all.length
             ? `${held ? `${held} of the ${HUBS.length} major hubs ${held === 1 ? "is" : "are"} held by a ground stop, delay program or closure: ${heldHubs.join(", ")}.` : `None of the ${HUBS.length} major hubs is held.`}${delayed ? ` ${delayed}${held ? " more" : ""} ${delayed === 1 ? "has" : "have"} delays.` : ""}${all.length - hubs.length ? ` ${all.length - hubs.length} smaller airport${all.length - hubs.length === 1 ? " has" : "s have"} something posted.` : ""}`
             : "No delays, delay programs or ground stops posted anywhere.",
-          items: [...lines.slice(0, 8), ...plan.slice(0, 4).map((e) => "Planned. " + planLine(e))],
-          note: "From the FAA's command center, updated about every minute. A hub is held when it has a ground stop, a delay program or a closure. Planned lines are what the FAA expects it may need later today.",
+          items: lines.slice(0, 8),
+          later: plan.slice(0, 5).map(planLine),
+          note: "From the FAA's command center, updated about every minute. A hub is held when it has a ground stop, a delay program or a closure. Later today lists what the FAA expects it may need.",
           source,
           track: { step, held, hubs: hubs.length, airports: all.length, stops: count(all, "stop") + count(all, "closed"), programs: count(all, "program"), worst: Math.max(0, ...all.map(([, r]) => r.min)) },
         },
@@ -142,7 +143,7 @@ export default [
           w: 0.4, wWhy: "the airports only matter on days you fly",
           airports: nyc.map((a) => ({ id: a.id, name: a.name, s: a.s, min: a.min || undefined, why: a.why || undefined, until: a.until || undefined, deicing: a.deicing })),
           planned,
-          items: nycPlan.map((e) => "Planned. " + planLine(e)),
+          later: nycPlan.map(planLine),
           note: "Each airport's worst posted delay, from the FAA's command center.",
           source,
           track: Object.fromEntries(nyc.map((a) => [a.id, a.s === "ok" ? 0 : a.s === "delays" ? a.min || 1 : a.s === "program" ? 1000 + a.min : 2000])),
@@ -238,7 +239,7 @@ export default [
         short: `${citywide} citywide`,
         track: { citywide, out: out.size, ...Object.fromEntries(MY_LINES.map((l) => [l, RANK[state[l].s]])) },
         note: `From the MTA's official alert feed. Planned work is left out. Delays are an everyday event and barely count; a suspended line or a systemwide failure does. Across the whole subway, ${citywide} unplanned alert${citywide === 1 ? " is" : "s are"} active and ${out.size} line${out.size === 1 ? " is" : "s are"} suspended.`,
-        items: [...new Set(hit.map((l) => clip(state[l].text.replace(/\]\s*\[/g, "/").replace(/\[(\w+)\]/g, "$1"), 180)))].slice(0, 3),
+        items: [...new Set(hit.map((l) => clip(state[l].text.replace(/\]\s*\[/g, "/").replace(/\[([\w/]+)\]/g, "$1"), 180)))].slice(0, 3),
         source: "https://www.mta.info/alerts",
       };
     },
@@ -253,7 +254,7 @@ export default [
       const texts = open.map((i) => strip(String(i.incidentMessage?.subject ?? i.subject ?? i.title ?? i.message ?? i.preMessage ?? JSON.stringify(i)))).map((t) => clip(t, 180));
       const all = texts.join(" ");
       return {
-        name: "PATH, Hoboken to Manhattan", label: "PATH", rowLabel: ["PATH", "Hoboken to NYC"], order: 4, tile: "air", scope: "home", kind: "status", w: 0.5, wWhy: "PATH is your backup route",
+        name: "PATH, Hoboken to NYC", label: "PATH", rowLabel: ["PATH", "Hoboken to NYC"], order: 4, tile: "air", scope: "home", kind: "status", w: 0.5, wWhy: "PATH is your backup route",
         state: /suspend/i.test(all) ? "major" : open.length ? "minor" : "ok",
         short: open.length ? `${open.length} incident${open.length === 1 ? "" : "s"}` : "no incidents",
         note: "From the Port Authority's incident feed. PATH is your backup route across the Hudson.",
