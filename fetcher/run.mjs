@@ -111,6 +111,12 @@ export async function runOnce({ get = httpGet, now = Date.now(), state = {}, eve
     }
     state.logV = 2;
   }
+  // One-time tidy after the Money rescoring: gold, Bitcoin and the 10-year yield no longer score, so their old lines go.
+  if (state.logV === 2) {
+    const context = new Set(["bitcoin", "gold", "ust10"]);
+    state.log = state.log.filter((x) => !context.has(x.id));
+    state.logV = 3;
+  }
 
   // What changed: one line whenever a reading or a dial crosses into a different band,
   // worded as what happened. The numbers behind it are in each reading's detail.

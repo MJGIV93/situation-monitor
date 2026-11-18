@@ -1356,15 +1356,17 @@ function renderStatus() {
   }
 
   // What changed: newest first, with anything since the last visit marked.
-  const fresh0 = seenAt ? state.log.filter((x) => Date.parse(x.t) > seenAt).length : 0;
-  const key = state.log.map((x) => x.t + x.text).join("|") + "|" + layoutMode() + "|" + seenAt;
+  // One line for each reading or dial: its latest change. The earlier ones stay in that reading's own detail.
+  const told = {}, changes = state.log.filter((x) => { const k = String(x.id || x.text); return told[k] ? false : (told[k] = true); });
+  const fresh0 = seenAt ? changes.filter((x) => Date.parse(x.t) > seenAt).length : 0;
+  const key = changes.map((x) => x.t + x.text).join("|") + "|" + layoutMode() + "|" + seenAt;
   if (key !== lastLog) {
     lastLog = key;
     const top = $("latestTop"), rest = $("latestRest"), more = $("latestMore");
     top.textContent = "";
     rest.textContent = "";
     const today = dayText(new Date());
-    state.log.forEach((x) => {
+    changes.forEach((x) => {
       const li = el("li", seenAt && Date.parse(x.t) > seenAt ? "new" : ""), d = new Date(Date.parse(x.t)), day = dayText(d);
       li.appendChild(el("time", null, (day && day !== today ? day + ", " : "") + clockText(d)));
       li.appendChild(document.createTextNode(String(x.text || "")));
@@ -1372,7 +1374,7 @@ function renderStatus() {
     });
     more.hidden = true;
     $("latestNew").textContent = fresh0 ? fresh0 + " since " + clockText(new Date(seenAt)) : "";
-    $("latest").hidden = !state.log.length;
+    $("latest").hidden = !changes.length;
   }
   fitChanges();
 
