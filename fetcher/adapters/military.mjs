@@ -1,4 +1,5 @@
-import { json, need, fetchOk, round, commas } from "../lib/util.mjs";
+import { json, need, fetchOk, strip, clip, round, commas, etDay, priceFields } from "../lib/util.mjs";
+import { cboe } from "./money.mjs";
 
 // Community receiver networks publish every military aircraft they can currently see.
 // adsb.fi asks for attribution and non-commercial use; adsb.lol is the backup.
@@ -88,6 +89,93 @@ export default [
           source, track: { e4: e4.length, e6: e6.length },
         },
       ];
+    },
+  },
+  {
+    id: "tfr",
+    every: 30,
+    async run(ctx) {
+      const list = json(await fetchOk(ctx, "https://tfr.faa.gov/tfrapi/exportTfrList"));
+      need(Array.isArray(list) && list.length, "no flight restriction list");
+      const of = (type) => list.filter((t) => String(t.type).toUpperCase() === type);
+      const vip = of("VIP"), security = of("SECURITY");
+      const when = (t) => {
+        const m = String(t.description).match(/(January|February|March|April|May|June|July|August|September|October|November|December) (\d{1,2}), (\d{4})/);
+        return m ? Date.parse(`${m[1]} ${m[2]}, ${m[3]} 12:00:00 GMT-0500`) : NaN;
+      };
+      const place = (t) => String(t.description).split(/, (?:Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day/)[0].trim().replace(/\b([A-Z])([A-Z]+)\b/g, (x, a, b) => (x.length > 2 ? a + b.toLowerCase() : x));
+      const local = vip.filter((t) => /^(NY|NJ)$/.test(t.state) && /New York|Newark|Morristown|Bedminster|Teterboro|Manhattan/i.test(t.description));
+      const source = "https://tfr.faa.gov/tfr3/";
+      return [
+        {
+          id: "tfr", name: "FAA flight restrictions", label: "Flight restrictions", tile: "mil", scope: "national", kind: "count",
+          num: vip.length + security.length, sev: 0, short: `${vip.length} VIP, ${security.length} security`,
+          items: vip.slice(0, 5).map((t) => `VIP movement: ${place(t)}${isFinite(when(t)) ? ", " + etDay(when(t)) : ""}`),
+          note: `${list.length} temporary flight restrictions are active or scheduled. VIP ones follow the president and vice president, and security ones cover military sites and operations. Shown for context and not scored.`,
+          source, track: { all: list.length, vip: vip.length, security: security.length },
+        },
+        {
+          id: "tfr-home", name: "VIP flight restrictions over New York and New Jersey", label: "VIP visits", tile: "gov", scope: "home", kind: "events", rule: "vip",
+          events: local.filter((t) => isFinite(when(t))).map((t) => ({ event: `VIP movement: ${place(t)}`, at: new Date(when(t)).toISOString(), text: etDay(when(t)) })),
+          short: local.length ? "airspace restricted" : "none scheduled",
+          note: "A presidential or vice presidential visit closes airspace and usually snarls Midtown traffic and Penn Station access. It scores a little on the day and the day before, as a heads-up.",
+          source,
+        },
+      ];
+    },
+  },
+  {
+    id: "gps-jam",
+    every: 360,
+    async run(ctx) {
+      const rows = (await fetchOk(ctx, "https://gpsjam.org/data/manifest.csv")).trim().split("\n").slice(1).map((l) => l.split(",")).filter((c) => c[1] === "false" && isFinite(Number(c[2])));
+      need(rows.length > 100, "short interference history");
+      const last = rows.at(-1), prior = rows.slice(-91, -1).map((c) => Number(c[2]));
+      const base = round(prior.reduce((a, b) => a + b, 0) / prior.length, 0);
+      return {
+        name: "GPS interference worldwide (GPSJam)", label: "GPS interference", tile: "mil", scope: "national", kind: "count",
+        num: Number(last[2]), base, tol: 1.5, short: `avg ${commas(base)}`,
+        asOf: etDay(Date.parse(last[0] + "T12:00:00Z")),
+        note: "The number of map cells where aircraft reported degraded GPS in a day, which rises with military jamming around conflict zones. Compared with the prior 90 days. Published daily, a day behind.",
+        source: "https://gpsjam.org/",
+        track: { cells: Number(last[2]) },
+      };
+    },
+  },
+  {
+    id: "travel-advisories",
+    every: 180,
+    async run(ctx) {
+      const xml = await fetchOk(ctx, "https://travel.state.gov/_res/rss/TAsTWs.xml", { timeout: 40000 });
+      const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].map(([, it]) => {
+        const title = strip(it.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? ""), at = Date.parse(strip(it.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1] ?? ""));
+        return { title, at, level: Number(title.match(/Level (\d)/)?.[1] ?? 0) };
+      }).filter((i) => i.level);
+      need(items.length > 100, "advisory list not found");
+      const four = items.filter((i) => i.level === 4);
+      const fresh = items.filter((i) => i.level >= 3 && isFinite(i.at) && ctx.now - i.at < 7 * 86400e3).sort((a, b) => b.level - a.level || b.at - a.at);
+      return {
+        name: "State Department travel advisories", label: "Do-not-travel list", tile: "mil", scope: "national", kind: "events", rule: "travel",
+        events: fresh.slice(0, 8).map((i) => ({ event: clip(i.title, 120), at: new Date(i.at).toISOString(), text: "updated " + etDay(i.at), level: i.level })),
+        short: `${four.length} at Level 4`,
+        note: `${four.length} countries are at Level 4, Do Not Travel, and ${items.filter((i) => i.level === 3).length} at Level 3. A new or reissued Level 4 scores for a few days, since those usually follow a war, coup or evacuation.`,
+        source: "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories.html",
+        track: { l4: four.length, l3: items.filter((i) => i.level === 3).length, fresh: fresh.length },
+      };
+    },
+  },
+  {
+    id: "defense-stocks",
+    every: 10,
+    async run(ctx) {
+      const { hist, dates, asOf } = await cboe(ctx, "ITA");
+      return {
+        name: "Defense stocks (iShares Aerospace and Defense fund)", label: "Defense stocks", tile: "mil", scope: "national", kind: "price",
+        fmt: "usd2", bad: "high", chg: "pct", cap: 20,
+        ...priceFields(hist, 5, "pct", dates), asOf,
+        note: "A fund holding the large US defense contractors. A sharp rise means investors are pricing in conflict. Delayed 15 minutes.",
+        source: "https://www.ishares.com/us/products/239502/ishares-us-aerospace-defense-etf",
+      };
     },
   },
   {

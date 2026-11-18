@@ -127,7 +127,7 @@ function priceCalc(f) {
   if (best) out.lines.push("Move: " + Math.round(sMove) + ". The " + best.label + " change of " + moveText(f, best.m) + (best.r > 0 ? " is " + best.r.toFixed(1) + " times a large " + best.word + " for this series (" + sizeText(f, best.big) + ")." : " is in the harmless direction."));
   out.lines.push("A large move is one bigger than 95% of the past year's. 1 time scores 20, 2 times 50, 4 times 90." + (table.length ? " The score is the higher of level and move." : ""));
   const cap = num(f.cap);
-  if (cap != null && out.sev > cap) { out.lines.push("Capped at " + cap + ". It's market context and can't break anything by itself."); out.sev = cap; }
+  if (cap != null && out.sev > cap) { out.lines.push("Capped at " + cap + ". It's context and can't break anything by itself."); out.sev = cap; }
   return out;
 }
 
@@ -253,6 +253,16 @@ const EVENT_RULES = {
     const k = fade(e.at, now, 72, 168);
     return { pts: base * k, why: (e.level === "directive" ? "emergency directive" : e.level === "exploited" ? "active exploitation" : "patch alert") + " " + base + (k === 1 ? "" : k ? ", halved after 3 days" : ", over a week old") };
   },
+  vip(e, now) {
+    const h = (Date.parse(e.at) - now) / HOUR; // hours until midday of the restriction
+    const pts = h > -18 && h < 36 ? 10 : 0;
+    return { pts, why: pts ? "a VIP visit today or tomorrow scores 10" : "more than a day away" };
+  },
+  travel(e, now) {
+    const base = e.level === 4 ? 20 : 5;
+    const k = fade(e.at, now, 72, 168);
+    return { pts: base * k, why: "Level " + e.level + " update " + base + (k === 1 ? "" : k ? ", halved after 3 days" : ", over a week old") };
+  },
   femaHome() { return { pts: 40, why: "a federal declaration covering your county scores 40" }; },
   context() { return { pts: 0, why: "context only" }; },
 };
@@ -263,6 +273,8 @@ const EVENT_NOTES = {
   quakeUS: "Only US quakes count: 25 at magnitude 6, 60 at 7, more if USGS rates the impact orange or red.",
   ntas: "A bulletin scores 20, an Elevated alert 60, an Imminent alert 90.",
   cyberAlert: "A patch alert scores 15, an alert about active exploitation 30, an emergency directive 50. Each fades after 3 days and drops off after 7.",
+  vip: "A VIP flight restriction over the New York area scores 10 on the day and the day before.",
+  travel: "A new or reissued Level 4 advisory scores 20, a Level 3 scores 5. Each fades after 3 days and drops off after 7.",
   femaHome: "Scores 40 while a federal declaration from the past 30 days covers Morris County or Manhattan.",
   context: "Shown for context. It doesn't add to the score.",
 };
