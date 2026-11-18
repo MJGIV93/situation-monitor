@@ -23,8 +23,9 @@ import hazards from "./adapters/hazards.mjs";
 import advisories from "./adapters/advisories.mjs";
 import cyber from "./adapters/cyber.mjs";
 import military from "./adapters/military.mjs";
+import news from "./adapters/news.mjs";
 
-export const ADAPTERS = [...utilities, ...travel, ...internet, ...money, ...fuel, ...hazards, ...advisories, ...military, ...cyber];
+export const ADAPTERS = [...utilities, ...travel, ...internet, ...money, ...fuel, ...hazards, ...advisories, ...military, ...cyber, ...news];
 
 const OUT = "out";
 const CONCURRENCY = 6;
@@ -89,8 +90,10 @@ export async function runOnce({ get = httpGet, now = Date.now(), state = {}, eve
 
   for (const [id, f] of Object.entries(state.feeds)) if (now - Date.parse(f.checkedAt) > DROP_AFTER) delete state.feeds[id];
 
+  // Headlines ride along with the readings but are context only: never scored, logged or charted.
+  const readings = Object.values(state.feeds).filter((f) => f.kind !== "news");
   // Score every reading with the same rules the page uses.
-  const feeds = Object.values(state.feeds).map((f) => ({ ...f, _c: calc(f, now) }));
+  const feeds = readings.map((f) => ({ ...f, _c: calc(f, now) }));
   const scores = { national: dial(feeds, "national", now).score, home: dial(feeds, "home", now).score };
 
   // Log: one line whenever a reading or a dial crosses into a different band.
@@ -141,7 +144,8 @@ export async function runOnce({ get = httpGet, now = Date.now(), state = {}, eve
   const latest = {
     scannedAt: iso,
     scores,
-    feeds: Object.values(state.feeds),
+    feeds: readings,
+    news: state.feeds.news ?? null,
     history: state.history.slice(-HISTORY_SHOWN),
     log: state.log,
     trailT: state.trailT,

@@ -150,6 +150,23 @@ body.wall .tail, body.wall .how { display: none; }
 .domlist { display: flex; flex-direction: column; gap: 12px; }
 .dom { padding: 10px 12px 4px; }
 .domhead { display: flex; align-items: center; gap: 10px; }
+.news { padding-bottom: 8px; }
+.news .domhead { justify-content: space-between; align-items: baseline; }
+.news .domhead .small { font-size: 11.5px; }
+.hl { border-top: 1px solid var(--line); }
+.hl:first-of-type { margin-top: 10px; }
+.hl summary { list-style: none; cursor: pointer; padding: 8px 0; }
+.hl summary::-webkit-details-marker { display: none; }
+.hl .hlt { display: block; font-size: 14px; line-height: 1.3; text-wrap: pretty; }
+.hl .hlm { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 3px; font-size: 11.5px; color: var(--dim); }
+.hl .tag { padding: 0 5px; border: 1px solid var(--line); border-radius: 2px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg); }
+.hl[open] .hlt { color: var(--fg); }
+.hl ul { padding: 0 0 8px; }
+.hl li { padding: 4px 0; font-size: 13px; line-height: 1.3; }
+.hl li a { color: var(--mid); text-decoration: none; }
+.hl li a:hover { color: var(--fg); text-decoration: underline; }
+.hl li b { display: block; font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
+.hl summary:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 .mark { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--c, transparent); border: 2px solid var(--c, var(--stale)); }
 .grp { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 10px; padding-bottom: 2px; border-bottom: 1px solid var(--line); }
 .grp span { font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--dim); }
@@ -359,6 +376,7 @@ body.wall .tail, body.wall .how { display: none; }
     <details class="how">
       <summary>How the scores work</summary>
       <p class="small">Both scores run 0 to 100 and higher is worse. Every reading carries a signal from 0 to 100, which is how much concern it adds, not how big its number is. A falling stock index or a train running late has a high signal. Each reading shows its rule and arithmetic when opened. A domain takes its worst reading plus a fifth of the next two. Domains then stack by weight. Real trouble shows up in several places at once, so a domain acting alone counts at 60% of its weight. It counts in full when two other domains are also active, or when it is severe enough to stand by itself. The points under each dial show how far that score would fall if the domain went quiet.</p>
+      <p class="small">Headlines are context and never change a score. A story is listed when three or more of 12 news outlets are carrying it at once, and running stories such as Iran or Russia and Ukraine are gathered into one entry. Each headline links to that outlet's own page.</p>
       <p class="small">0 to 9 is quiet, 10 to 24 watch, 25 to 49 elevated, 50 to 74 disrupted, 75 and up severe. The numbers inside each dial's arc mark where those bands begin.</p>
       <p class="small legendrow"><span><i class="lt"></i>Checked and fine</span><span data-band="2"><i class="lt" style="background: var(--c)"></i>Active, in its band color</span><span><i class="lt ns"></i>Not scored: context, or still building a baseline</span><span><i class="lt dead"></i>Source stale or not answering</span></p>
       <p class="small">Readings refresh every 10 minutes, and slower sources hourly. If a source stops answering, its last reading stays up. It is dimmed after 3 hours and stops counting after 24.</p>
@@ -911,9 +929,51 @@ function renderSignals() {
   top.forEach((f) => host.appendChild(row(f, f.scope === "home" ? "HOME" : "USA", "sig")));
   $("signalNone").hidden = top.length > 0 || !state.loaded;
 }
+// Headlines: stories several outlets are carrying at once. Context only, never scored.
+// The card is built once and kept, so a story that has been opened stays open across refreshes.
+const newsCard = el("section", "card dom news");
+let newsKey = "";
+function renderNews() {
+  const n = state.news, stories = arr(n && n.stories);
+  const key = JSON.stringify([n && n.checkedAt, stories.map((s) => s.link)]);
+  if (key === newsKey) return;
+  newsKey = key;
+  const open = {};
+  Array.prototype.forEach.call(newsCard.querySelectorAll("details[open]"), (d) => { open[d.dataset.k] = 1; });
+  newsCard.textContent = "";
+  const head = el("div", "domhead");
+  head.appendChild(el("h3", "ctitle", "Headlines"));
+  head.appendChild(el("span", "small", n && n.checkedAt ? "as of " + clockText(new Date(n.checkedAt)) : ""));
+  newsCard.appendChild(head);
+  if (!stories.length) newsCard.appendChild(el("p", "small", "No story is being carried by three or more outlets right now."));
+  stories.forEach((s) => {
+    const d = el("details", "hl"), sum = el("summary"), meta = el("span", "hlm");
+    d.dataset.k = String(s.topic || s.link);
+    d.open = !!open[d.dataset.k];
+    sum.appendChild(el("span", "hlt", String(s.title)));
+    if (s.topic) meta.appendChild(el("b", "tag", String(s.topic)));
+    meta.appendChild(el("span", null, s.n + " outlets"));
+    if (s.first) meta.appendChild(el("span", null, "since " + clockText(new Date(s.first))));
+    sum.appendChild(meta);
+    d.appendChild(sum);
+    const ul = el("ul");
+    arr(s.links).forEach((l) => {
+      if (!/^https:\/\//.test(String(l.u))) return;
+      const li = el("li"), a = el("a");
+      a.href = l.u; a.target = "_blank"; a.rel = "noopener noreferrer";
+      a.appendChild(el("b", null, String(l.o)));
+      a.appendChild(document.createTextNode(String(l.t)));
+      li.appendChild(a);
+      ul.appendChild(li);
+    });
+    d.appendChild(ul);
+    newsCard.appendChild(d);
+  });
+}
 function renderDomains() {
   const host = $("domlist");
   host.textContent = "";
+  if (state.news) { renderNews(); host.appendChild(newsCard); }
   TILES.forEach((t) => {
     const feeds = state.feeds.filter((f) => f.tile === t.id);
     if (!feeds.length) return;
@@ -1072,6 +1132,7 @@ async function load() {
     applyMe();
     state.history = arr(data.history).filter((p) => p && typeof p === "object");
     state.log = arr(data.log).filter((x) => x && x.text);
+    state.news = data.news && typeof data.news === "object" ? data.news : null;
     state.errors = arr(data.errors);
     state.trailT = arr(data.trailT);
     state.trails = data.trails && typeof data.trails === "object" ? data.trails : {};
