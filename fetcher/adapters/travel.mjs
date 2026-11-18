@@ -2,9 +2,11 @@ import { json, need, fetchOk, strip, clip, etClock } from "../lib/util.mjs";
 
 /* ---- FAA ---- */
 const FAA = "https://nasstatus.faa.gov/api";
-const FAA_STEPS = ["Clear", "Delays", "Delay programs", "Ground stops", "Nationwide stop"];
-const FAA_SEVS = [0, 5, 15, 35, 95];
-const FAA_LADDER = ["nothing posted at the 30 major hubs", "delays at up to four hubs", "delay programs, or delays at five or more hubs", "ground stops at major hubs", "ground stops at twelve or more airports"];
+// The national level goes by how many of the 30 major hubs are held at once, by a ground stop,
+// a delay program or a closure. One hub held for thunderstorms is an ordinary day.
+const FAA_STEPS = ["Normal", "Scattered", "Regional", "Widespread", "Nationwide"];
+const FAA_SEVS = [0, 5, 15, 40, 95];
+const FAA_LADDER = ["no hub held, and delays at fewer than three", "one or two hubs held, or delays at three or more", "three to five hubs held", "six to eleven hubs held", "twelve or more hubs held"];
 const HUBS = "ATL BOS BWI CLT DCA DEN DFW DTW EWR FLL HNL IAD IAH JFK LAS LAX LGA MCO MDW MEM MIA MSP ORD PHL PHX SAN SEA SFO SLC TPA".split(" ");
 const NYC = [["EWR", "Newark"], ["JFK", "JFK"], ["LGA", "LaGuardia"]];
 
@@ -112,12 +114,8 @@ export default [
       const all = [...airports];
       const hubs = all.filter(([id]) => HUBS.includes(id));
       const count = (list, state) => list.filter(([, r]) => r.s === state).length;
-      const stops = count(all, "stop") + count(all, "closed");
-      let step = 0;
-      if (hubs.length) step = 1;
-      if (count(hubs, "program") || hubs.length >= 5 || stops) step = 2;
-      if (count(hubs, "stop") || count(hubs, "closed")) step = 3;
-      if (stops >= 12) step = 4;
+      const heldHubs = hubs.filter(([, r]) => r.s !== "delays").map(([id]) => id), held = heldHubs.length, delayed = count(hubs, "delays");
+      const step = held >= 12 ? 4 : held >= 6 ? 3 : held >= 3 ? 2 : held >= 1 || delayed >= 3 ? 1 : 0;
       const order = { closed: 0, stop: 1, program: 2, delays: 3 };
       const lines = all.sort((x, y) => order[x[1].s] - order[y[1].s] || y[1].min - x[1].min).map(([id, r]) => `${id}: ${stateText(r)}`);
 
@@ -129,12 +127,14 @@ export default [
         {
           id: "faa-nas", name: "US airports, FAA delays and ground stops", label: "US airports", tile: "air", scope: "national", kind: "level",
           steps: FAA_STEPS, sevs: FAA_SEVS, ladder: FAA_LADDER, step,
-          short: `${hubs.length} of ${HUBS.length} hubs`,
-          detail: all.length ? `${hubs.length} of the ${HUBS.length} major hubs have something posted, and ${all.length - hubs.length} smaller airports.` : "No delays, delay programs or ground stops posted anywhere.",
+          short: held ? `${held} of ${HUBS.length} hubs held` : delayed ? `delays at ${delayed}` : "no hubs held",
+          detail: all.length
+            ? `${held ? `${held} of the ${HUBS.length} major hubs ${held === 1 ? "is" : "are"} held by a ground stop, delay program or closure: ${heldHubs.join(", ")}.` : `None of the ${HUBS.length} major hubs is held.`}${delayed ? ` ${delayed}${held ? " more" : ""} ${delayed === 1 ? "has" : "have"} delays.` : ""}${all.length - hubs.length ? ` ${all.length - hubs.length} smaller airport${all.length - hubs.length === 1 ? " has" : "s have"} something posted.` : ""}`
+            : "No delays, delay programs or ground stops posted anywhere.",
           items: [...lines.slice(0, 8), ...plan.slice(0, 4).map((e) => "Planned. " + planLine(e))],
-          note: "From the FAA's command center, updated about every minute. Planned lines are what it expects it may need later today.",
+          note: "From the FAA's command center, updated about every minute. A hub is held when it has a ground stop, a delay program or a closure. Planned lines are what the FAA expects it may need later today.",
           source,
-          track: { step, hubs: hubs.length, airports: all.length, stops, programs: count(all, "program"), worst: Math.max(0, ...all.map(([, r]) => r.min)) },
+          track: { step, held, hubs: hubs.length, airports: all.length, stops: count(all, "stop") + count(all, "closed"), programs: count(all, "program"), worst: Math.max(0, ...all.map(([, r]) => r.min)) },
         },
         {
           id: "faa-nyc", name: "Newark, JFK and LaGuardia", label: "NYC airports", order: 6, tile: "air", scope: "home", kind: "airports",

@@ -1057,7 +1057,7 @@ function renderNews() {
     sum.appendChild(el("span", "hlt", String(s.title)));
     if (s.topic) meta.appendChild(el("b", "tag", String(s.topic)));
     meta.appendChild(el("span", null, s.n + " outlets"));
-    if (s.first) meta.appendChild(el("span", null, "since " + clockText(new Date(s.first))));
+    if (s.last) { const at = new Date(s.last), day = dayText(at); meta.appendChild(el("span", null, "latest " + (day && day !== dayText(new Date()) ? day + ", " : "") + clockText(at))); }
     sum.appendChild(meta);
     sum.appendChild(el("span", "hlo", arr(s.links).map((l) => l.o).join(" · ")));
     d.appendChild(sum);

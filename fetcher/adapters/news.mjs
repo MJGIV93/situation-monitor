@@ -20,7 +20,9 @@ const FEEDS = [
   ["France 24", "https://www.france24.com/en/rss"],
 ];
 const OUTLETS = [...new Set(FEEDS.map((f) => f[0]))];
-const WINDOW_H = 18, MIN_OUTLETS = 3, SHOWN = 12;
+// A story is listed while outlets have carried it in the past 12 hours, and ranked by how
+// many have published on it in the past 6, so yesterday's news sinks as today's arrives.
+const WINDOW_H = 12, FRESH_H = 6, MIN_OUTLETS = 3, SHOWN = 12;
 
 // Running stories. Every headline on one of these is gathered into a single entry, because
 // a war produces a dozen differently worded headlines a day that would never group by wording.
@@ -76,13 +78,13 @@ function parse(xml, outlet, now) {
   const items = [];
   for (const [, body] of xml.matchAll(/<item[\s>]([\s\S]*?)<\/item>/g)) {
     const pick = (tag) => body.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`))?.[1] ?? "";
-    const title = decode(pick("title")).replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F]/gu, "").trim().replace(/^[A-Za-z' ]{0,24}\blive( updates)?:\s*/i, "").replace(/\s+[–-] (live|as it happened).*$/i, "");
+    const title = decode(pick("title")).replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F]/gu, "").trim().replace(/^[A-Z][A-Z' -]{3,30}:\s+(?=[A-Z])/, "").replace(/^[A-Za-z' ]{0,24}\blive( updates)?:\s*/i, "").replace(/\s+[–-] (live|as it happened).*$/i, "");
     const link = decode(pick("link")) || decode(pick("guid"));
     const at = Date.parse(decode(pick("pubDate")) || decode(pick("dc:date")));
     if (!title || title.length < 20 || !/^https:\/\//.test(link) || isNaN(at) || at > now + 3600e3 || now - at > WINDOW_H * 3600e3) continue;
     if (SKIP_TITLE.test(title) || SKIP_LINK.test(link)) continue;
     const t = tokens(title);
-    if (t.size >= 3) items.push({ outlet, title, link, at, t, rank: items.length });
+    if (t.size >= 3) items.push({ outlet, title, link, at, t, rank: items.length, fresh: now - at < FRESH_H * 3600e3 });
   }
   return items;
 }
@@ -97,21 +99,24 @@ function cluster(items) {
   }
   return out;
 }
-// One headline per outlet: its most prominent one.
+// One headline per outlet: its newest one.
 function perOutlet(items) {
   const by = new Map();
-  for (const it of items) if (!by.has(it.outlet) || it.rank < by.get(it.outlet).rank) by.set(it.outlet, it);
+  for (const it of items) if (!by.has(it.outlet) || it.at > by.get(it.outlet).at) by.set(it.outlet, it);
   return by;
 }
 function story(items, lead, topic, min = MIN_OUTLETS) {
   const by = perOutlet(items), has = OUTLETS.filter((o) => by.has(o));
   return {
     title: lead.title, link: lead.link, outlet: lead.outlet, topic, n: has.length, min,
+    fresh: has.filter((o) => by.get(o).fresh).length,
     links: has.map((o) => ({ o, u: by.get(o).link, t: clip(by.get(o).title, 140) })),
     first: Math.min(...items.map((x) => x.at)), last: Math.max(...items.map((x) => x.at)),
   };
 }
-const leadOf = (items) => { const by = perOutlet(items); return OUTLETS.map((o) => by.get(o)).find(Boolean); };
+// The headline shown comes from the first outlet in the list with new coverage, or failing that, any coverage.
+const leadOf = (items) => { const all = OUTLETS.map((o) => perOutlet(items).get(o)).filter(Boolean); return all.find((x) => x.fresh) ?? all[0]; };
+const freshOutlets = (items) => [...perOutlet(items).values()].filter((x) => x.fresh).length;
 
 export function group(items) {
   const stories = [], rest = [];
@@ -123,7 +128,7 @@ export function group(items) {
   for (const [name, list] of threads) {
     if (!list.length) continue;
     // The headline shown is from the development most outlets are leading with.
-    const main = cluster(list).sort((a, b) => perOutlet(b).size - perOutlet(a).size || Math.min(...a.map((x) => x.rank)) - Math.min(...b.map((x) => x.rank)))[0];
+    const main = cluster(list).sort((a, b) => freshOutlets(b) - freshOutlets(a) || perOutlet(b).size - perOutlet(a).size || Math.min(...a.map((x) => x.rank)) - Math.min(...b.map((x) => x.rank)))[0];
     stories.push(story([...main, ...list.filter((x) => !main.includes(x) && !perOutlet(main).has(x.outlet))], leadOf(main), name));
   }
   for (const c of cluster(rest)) {
@@ -147,8 +152,8 @@ export default [
       need(answered.size >= 6, `only ${answered.size} of ${OUTLETS.length} news outlets answered`);
       const stories = group(pages.filter(Boolean).flat())
         .filter((s) => s.n >= s.min)
-        // A watched topic ranks as if two more outlets carried it.
-        .sort((a, b) => b.n + (b.topic ? 2 : 0) - (a.n + (a.topic ? 2 : 0)) || b.last - a.last)
+        // Stories with new coverage come first. A watched topic ranks as if two more outlets carried it.
+        .sort((a, b) => (b.fresh > 0) - (a.fresh > 0) || b.fresh + (b.topic ? 2 : 0) + b.n / 4 - (a.fresh + (a.topic ? 2 : 0) + a.n / 4) || b.last - a.last)
         .slice(0, SHOWN)
         .map(({ min, ...s }) => ({ ...s, title: clip(s.title, 150), first: new Date(s.first).toISOString(), last: new Date(s.last).toISOString() }));
       return { kind: "news", stories, outlets: OUTLETS.length, answered: answered.size };
