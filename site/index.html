@@ -4,10 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="color-scheme" content="light dark">
+<meta name="color-scheme" content="dark light">
 <title>Situation Monitor</title>
 <meta name="description" content="A live board of outages and disruptions, scored for the USA and for Morristown, NJ and the commute into Manhattan.">
 <meta name="theme-color" content="#0d1116">
+<script>
+// Dark is the default whatever the device is set to. A light choice is remembered in this browser.
+try { if (localStorage.getItem("sm-theme") === "light") document.documentElement.setAttribute("data-theme", "light"); } catch (e) { /* private window */ }
+</script>
 <link rel="icon" id="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="manifest" href="manifest.webmanifest">
@@ -27,33 +31,28 @@
    domain, each a stack of instrument rows (label, instrument, value over change). Every row opens to its own detail.
    Chrome stays neutral; color only marks severity. Phone: the same parts in one column. */
 :root {
-  --bg: #eceff2;
-  --surface: #f9fafb;
-  --sunk: #eef1f4;
-  --line: #d2d8de;
-  --fg: #12171c;
-  --dim: #5a6570;
-  --b0: #1c8a5e;
-  --b1: #8f7c00;
-  --b2: #c4610c;
-  --b3: #c9302c;
-  --b4: #8e1140;
-  --stale: #8d97a1;
-  --mid: #36414c;
+  color-scheme: dark;
+  --bg: #0d1116;
+  --surface: #141a21;
+  --sunk: #0f141a;
+  --line: #26303a;
+  --fg: #e4e9ee;
+  --dim: #8a96a3;
+  --b0: #46c08f;
+  --b1: #dccb4a;
+  --b2: #f09a3e;
+  --b3: #f25c54;
+  --b4: #ff6aa8;
+  --stale: #5f6b78;
+  --mid: #aeb8c2;
   --f-display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
   --f-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --bg: #0d1116; --surface: #141a21; --sunk: #0f141a; --line: #26303a; --fg: #e4e9ee; --dim: #8a96a3;
-    --b0: #46c08f; --b1: #dccb4a; --b2: #f09a3e; --b3: #f25c54; --b4: #ff6aa8; --stale: #5f6b78; --mid: #aeb8c2;
-  }
-}
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #0d1116; --surface: #141a21; --sunk: #0f141a; --line: #26303a; --fg: #e4e9ee; --dim: #8a96a3;
-  --b0: #46c08f; --b1: #dccb4a; --b2: #f09a3e; --b3: #f25c54; --b4: #ff6aa8; --stale: #5f6b78; --mid: #aeb8c2;
+/* Light is opt-in from the button in the header, never taken from the device's setting. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #eceff2; --surface: #f9fafb; --sunk: #eef1f4; --line: #d2d8de; --fg: #12171c; --dim: #5a6570;
+  --b0: #1c8a5e; --b1: #8f7c00; --b2: #c4610c; --b3: #c9302c; --b4: #8e1140; --stale: #8d97a1; --mid: #36414c;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -150,7 +149,7 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: 26px; line-heig
 body.wall .tail, body.wall .how { display: none; }
 .wallbtn { appearance: none; -webkit-appearance: none; padding: 5px 10px; border: 1px solid var(--line); border-radius: 2px; background: none; color: var(--dim); font: inherit; font-size: 12px; cursor: pointer; }
 .wallbtn:hover, .wallbtn[aria-pressed="true"] { color: var(--fg); border-color: var(--dim); }
-@media (max-width: 1099px) { .wallbtn { display: none; } }
+@media (max-width: 1099px) { .wallbtn { display: none; } .wallbtn.themebtn { display: inline-block; } }
 
 /* domains */
 .domlist { display: flex; flex-direction: column; gap: 12px; }
@@ -396,6 +395,7 @@ body.compact .dial .sparkbox { grid-area: spark; }
     </div>
     <div class="status"><span class="dot" id="dot"></span><span><span id="statusText">Connecting</span><span id="nextText"></span></span></div>
     <div class="clocks"><span><b id="clock"></b></span><span><b id="zulu"></b></span></div>
+    <button type="button" class="wallbtn themebtn" id="themeBtn" title="Switch between dark and light">Light</button>
     <button type="button" class="wallbtn" id="wallBtn" aria-pressed="false" title="Full screen for a spare monitor">Wall mode</button>
   </div>
 </header>
@@ -1347,6 +1347,17 @@ function setWall(on) {
   }
 }
 $("wallBtn").addEventListener("click", () => setWall(!document.body.classList.contains("wall")));
+
+// Theme: dark unless the viewer picks light here. The device's own setting is ignored.
+function setTheme(light, save) {
+  if (light) document.documentElement.setAttribute("data-theme", "light"); else document.documentElement.removeAttribute("data-theme");
+  $("themeBtn").textContent = light ? "Dark" : "Light";
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", light ? "#eceff2" : "#0d1116");
+  if (save) { try { if (light) localStorage.setItem("sm-theme", "light"); else localStorage.removeItem("sm-theme"); } catch (e) { /* private window */ } }
+}
+$("themeBtn").addEventListener("click", () => { setTheme(document.documentElement.getAttribute("data-theme") !== "light", true); if (state.loaded) render(); });
+setTheme(document.documentElement.getAttribute("data-theme") === "light", false);
 document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && document.body.classList.contains("wall")) setWall(false); });
 </script>
 </body>
