@@ -1,4 +1,4 @@
-import { need, fetchOk, strip, etDay, priceFields } from "../lib/util.mjs";
+import { need, fetchOk, strip, etDay, round, priceFields } from "../lib/util.mjs";
 import { price, yahoo, fred } from "./money.mjs";
 
 const dayLabel = (iso) => etDay(Date.parse(iso + "T12:00:00-05:00"));
@@ -44,15 +44,29 @@ export default [
       need(m, "AAA price table not found");
       const [now, yesterday, week, month, year] = m.slice(1).map(Number);
       need(now > 1 && now < 12, "AAA price out of range");
-      // What counts as a large move is borrowed from the US weekly series until this one has its own history.
-      const us = priceFields((await fred(ctx, "GASREGW")).map((r) => r.v), 1, "pct");
+      // AAA publishes no history, so each day's value is kept here from now on.
+      const day = (back) => new Date(ctx.now - back * 86400e3).toISOString().slice(0, 10);
+      const days = (ctx.cache.days ??= {});
+      days[day(0)] = now;
+      for (const [back, v] of [[1, yesterday], [7, week], [30, month], [365, year]]) days[day(back)] ??= v;
+      for (const k of Object.keys(days)) if (k < day(800)) delete days[k];
+      const own = [];
+      for (let w = 0; w <= 52 && days[day(w * 7)] != null; w++) own.unshift(days[day(w * 7)]);
+
+      // Until a year of its own history exists, the range and what counts as a large
+      // move come from the US weekly series, shifted to New Jersey's price level.
+      const usRows = (await fred(ctx, "GASREGW")).map((r) => r.v);
+      const us = priceFields(usRows, 1, "pct");
+      const mine = own.length >= 53 ? priceFields(own, 1, "pct") : null;
+      const shift = now - usRows.at(-1);
       return {
         name: "Regular gasoline, New Jersey average", label: "Gas, NJ pump", tile: "fuel", scope: "home", kind: "price",
         fmt: "usd2", bad: "high", chg: "pct", wk: 1,
-        num: now, refs: { 1: week, 4: month }, series: [],
-        bigA: us.bigA, bigB: us.bigB,
+        num: now, refs: { 1: week, 4: month }, series: own.length >= 3 ? own : [],
+        lo: mine ? mine.lo : round(us.lo + shift, 3), hi: mine ? mine.hi : round(Math.max(us.hi + shift, now), 3), med: mine ? mine.med : round(us.med + shift, 3),
+        bigA: (mine ?? us).bigA, bigB: (mine ?? us).bigB,
         asOf: etDay(ctx.now),
-        note: "AAA's daily state average for regular.",
+        note: "AAA's daily state average for regular." + (mine ? "" : ` Its 12-month range is an estimate: the US average's range moved ${shift >= 0 ? "up" : "down"} ${Math.round(Math.abs(shift) * 100)} cents to New Jersey's level. It switches to New Jersey's own history once a year of it is recorded (${own.length} of 53 weeks so far).`),
         items: [`Yesterday $${yesterday.toFixed(3)}`, `A year ago $${year.toFixed(3)}`],
         source: "https://gasprices.aaa.com/?state=NJ",
       };

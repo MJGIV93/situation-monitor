@@ -5,8 +5,10 @@
 //   latest.json   what the page reads
 //   state.json    last good readings, per-adapter caches, history and log
 //   runs.jsonl    one line per run, for checking reliability
+//   archive/      one file per day: both dials and every reading's score at each run
 
-import { mkdir, readFile, writeFile, appendFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, appendFile, readdir, unlink } from "node:fs/promises";
+import { gzipSync } from "node:zlib";
 import { pathToFileURL } from "node:url";
 import { get as httpGet } from "./lib/http.mjs";
 import { etClock } from "./lib/util.mjs";
@@ -127,7 +129,9 @@ export async function runOnce({ get = httpGet, now = Date.now(), state = {}, eve
     errors,
   };
   const summary = { t: iso, event, ms: Date.now() - started, ran: due.length, adapters: ADAPTERS.length, readings: feeds.length, ...scores, failed: errors.map((e) => e.id) };
-  return { latest, state, summary };
+  // One compact line per run for the long-term archive: both dials and every non-zero reading score.
+  const archive = { t: iso, n: scores.national, h: scores.home, live: feeds.filter((f) => live(f, now)).length, s: Object.fromEntries(feeds.filter((f) => live(f, now) && f._c.sev > 0).map((f) => [f.id, f._c.sev])) };
+  return { latest, state, summary, archive };
 }
 
 async function readJson(path, fallback) {
@@ -141,10 +145,20 @@ async function readJson(path, fallback) {
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   await mkdir(OUT, { recursive: true });
   const state = await readJson(`${OUT}/state.json`, {});
-  const { latest, summary } = await runOnce({ state, event: process.env.GITHUB_EVENT_NAME ?? "local" });
+  const { latest, summary, archive } = await runOnce({ state, event: process.env.GITHUB_EVENT_NAME ?? "local" });
   await writeFile(`${OUT}/latest.json`, JSON.stringify(latest));
   await writeFile(`${OUT}/state.json`, JSON.stringify(state));
   await appendFile(`${OUT}/runs.jsonl`, JSON.stringify(summary) + "\n");
+
+  // Archive: one file per day, compressed once the day is over.
+  const today = archive.t.slice(0, 10);
+  await mkdir(`${OUT}/archive`, { recursive: true });
+  await appendFile(`${OUT}/archive/${today}.jsonl`, JSON.stringify(archive) + "\n");
+  for (const name of await readdir(`${OUT}/archive`)) {
+    if (!name.endsWith(".jsonl") || name.slice(0, 10) >= today) continue;
+    await writeFile(`${OUT}/archive/${name}.gz`, gzipSync(await readFile(`${OUT}/archive/${name}`)));
+    await unlink(`${OUT}/archive/${name}`);
+  }
   console.log(`${summary.readings} readings from ${summary.ran} of ${summary.adapters} adapters in ${summary.ms} ms. USA ${summary.national}, Home ${summary.home}.`);
   for (const e of latest.errors) console.log(`FAILED ${e.id}: ${e.msg} (since ${e.since})`);
 }
