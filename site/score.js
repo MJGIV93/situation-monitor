@@ -371,18 +371,29 @@ export function tileScore(sevs) {
   for (let i = 1; i < Math.min(s.length, 3); i++) rest += s[i];
   return Math.min(100, s[0] + 0.2 * rest);
 }
+// How much of a domain's weight applies. Real trouble shows up in several domains at
+// once, so a domain acting alone counts at 60%. It counts in full when two other
+// domains are also active, or when it is severe enough to stand by itself.
+export function corroboration(tile, others) {
+  const backing = Math.min(2, others.reduce((a, t) => a + Math.min(1, t / 40), 0));
+  return clamp(Math.max(0.6 + 0.2 * backing, tile / 75), 0.6, 1);
+}
 // feeds: readings that already carry their computed score in _c.
 export function dial(feeds, scope, now = Date.now()) {
   const mine = feeds.filter((f) => f.scope === scope);
   const liveFeeds = mine.filter((f) => live(f, now));
-  const w = WEIGHTS[scope], parts = [];
-  let keep = 1;
+  const w = WEIGHTS[scope], tiles = [];
   TILES.forEach((t) => {
     const tf = liveFeeds.filter((f) => f.tile === t.id);
-    if (!tf.length) return;
-    const c = ((w[t.id] || 0) * tileScore(tf.map((f) => f._c.sev))) / 100;
+    if (tf.length) tiles.push({ id: t.id, tile: tileScore(tf.map((f) => f._c.sev)) });
+  });
+  const parts = [];
+  let keep = 1;
+  tiles.forEach((t) => {
+    const share = corroboration(t.tile, tiles.filter((x) => x !== t).map((x) => x.tile));
+    const c = ((w[t.id] || 0) * t.tile * share) / 100;
     keep *= 1 - c;
-    if (c >= 0.005) parts.push({ id: t.id, c });
+    if (c >= 0.005) parts.push({ id: t.id, c, share });
   });
   // A domain's points: how far the score would fall if that domain alone went quiet.
   parts.forEach((p) => { p.pts = 100 * (1 - keep) - 100 * (1 - keep / Math.max(1 - p.c, 1e-9)); });
