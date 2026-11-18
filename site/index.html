@@ -45,6 +45,7 @@ try { if (localStorage.getItem("sm-theme") === "light") document.documentElement
   --b4: #ff6aa8;
   --stale: #5f6b78;
   --mid: #aeb8c2;
+  --zone: #414e5c;
   --f-display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
   --f-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
@@ -52,7 +53,7 @@ try { if (localStorage.getItem("sm-theme") === "light") document.documentElement
 :root[data-theme="light"] {
   color-scheme: light;
   --bg: #eceff2; --surface: #f9fafb; --sunk: #eef1f4; --line: #d2d8de; --fg: #12171c; --dim: #5a6570;
-  --b0: #1c8a5e; --b1: #8f7c00; --b2: #c4610c; --b3: #c9302c; --b4: #8e1140; --stale: #8d97a1; --mid: #36414c;
+  --b0: #1c8a5e; --b1: #8f7c00; --b2: #c4610c; --b3: #c9302c; --b4: #8e1140; --stale: #8d97a1; --mid: #36414c; --zone: #aab4be;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -235,6 +236,9 @@ body.wall .tail, body.wall .how { display: none; }
 .rd.sel > .row .rk { color: var(--fg); font-weight: 500; }
 /* instruments */
 .range { position: relative; height: 6px; border-radius: 3px; background: var(--line); }
+.range s { position: absolute; top: 0; height: 100%; background: var(--zone); text-decoration: none; }
+.range s.l { border-radius: 3px 0 0 3px; }
+.range s.r { border-radius: 0 3px 3px 0; }
 .range u { position: absolute; top: -2px; width: 1px; height: 10px; background: var(--dim); }
 .range i { position: absolute; top: -4px; width: 4px; height: 14px; margin-left: -2px; border-radius: 1px; background: var(--c, var(--fg)); }
 .steps { display: flex; gap: 2px; }
@@ -694,10 +698,12 @@ function instrument(f, c) {
   let box;
   if (k === "price" && num(f.lo) != null && num(f.hi) != null) {
     box = el("div", "range");
+    // The stretch of the bar where the level itself starts to count.
+    arr(c.zones).forEach((z) => { const s = el("s", z[0] <= 0 ? "l" : z[1] >= 1 ? "r" : ""); s.style.left = (z[0] * 100).toFixed(1) + "%"; s.style.width = ((z[1] - z[0]) * 100).toFixed(1) + "%"; box.appendChild(s); });
     const med = num(f.med);
     if (med != null && f.hi > f.lo) { const u = el("u"); u.style.left = (clamp((med - f.lo) / (f.hi - f.lo), 0, 1) * 100).toFixed(1) + "%"; box.appendChild(u); }
     const m = el("i"); m.style.left = (c.pos * 100).toFixed(1) + "%"; box.appendChild(m);
-    box.title = "12-month range " + fmt(num(f.lo), f.fmt) + " to " + fmt(num(f.hi), f.fmt) + (med != null ? ", median " + fmt(med, f.fmt) : "");
+    box.title = "12-month range " + fmt(num(f.lo), f.fmt) + " to " + fmt(num(f.hi), f.fmt) + (med != null ? ", median " + fmt(med, f.fmt) : "") + (arr(c.zones).length ? ". The lighter stretch is where the level itself starts to count." : "");
   } else if (k === "level") {
     box = el("div", "steps");
     // One segment for each level above the lowest, so a normal reading lights nothing.

@@ -74,51 +74,54 @@ export function price(id, base, load) {
     every: 10,
     async run(ctx) {
       const { hist, dates, asOf, perWeek = 5, extra = {} } = await load(ctx);
-      return { tile: "money", scope: "national", kind: "price", ...base, ...priceFields(hist, perWeek, base.chg ?? "pct", dates), asOf, ...extra };
+      return { tile: "money", scope: "national", kind: "price", ...base, ...priceFields(hist, perWeek, base.chg ?? "pct", dates, (base.bigPct ?? 95) / 100), asOf, ...extra };
     },
   };
 }
 
+// Market readings move every day. A move has to beat 99% of the past year's, two or three days a year, to count as big.
+const BIG = { bigPct: 99 };
+
 export default [
   price("vix", {
-    name: "VIX (market fear gauge)", label: "VIX", fmt: "num2", bad: "high", chg: "abs",
+    name: "VIX, expected stock market swings", label: "VIX", rowLabel: ["VIX", "market swings"], order: 3, fmt: "num2", bad: "high", chg: "abs", ...BIG,
     abs: { x: [15, 20, 25, 30, 40, 60], s: [0, 8, 20, 40, 70, 100] },
     note: "How much traders expect stocks to swing over the next month. Delayed 15 minutes.",
     source: "https://www.cboe.com/tradable_products/vix/",
   }, (ctx) => cboe(ctx, "_VIX")),
   price("sp500", {
-    name: "S&P 500", label: "S&P 500", fmt: "num0", bad: "low", chg: "pct",
+    name: "S&P 500, US stocks", label: "S&P 500", rowLabel: ["S&P 500", "US stocks"], order: 4, fmt: "num0", bad: "low", chg: "pct", ...BIG,
     note: "Delayed 15 minutes during market hours.",
     source: "https://www.cboe.com/us/indices/dashboard/spx/",
   }, (ctx) => cboe(ctx, "_SPX")),
   price("ust10", {
-    name: "10-year Treasury yield", label: "10-yr Treasury", fmt: "pct2", bad: "high", chg: "abs", cap: 20,
-    note: "Rising yields squeeze bank balance sheets and raise borrowing costs. Delayed 15 minutes.",
+    name: "10-year Treasury yield", label: "10-yr Treasury", rowLabel: ["10-yr Treasury", "borrowing costs"], order: 7, fmt: "pct2", bad: "high", chg: "abs", context: true, ...BIG,
+    note: "Rising yields raise borrowing costs and squeeze bank balance sheets, slowly. A real scare shows in the VIX and the junk spread first, so this is here to read alongside them. Delayed 15 minutes.",
     source: "https://www.cboe.com/us/indices/dashboard/tnx/",
   }, (ctx) => cboe(ctx, "_TNX", 0.1)),
   price("bitcoin", {
-    name: "Bitcoin", label: "Bitcoin", fmt: "usdk", bad: "low", chg: "pct", cap: 15,
-    note: "Counted as a gauge of risk appetite. Live from Coinbase.",
+    name: "Bitcoin", label: "Bitcoin", rowLabel: ["Bitcoin", "risk appetite"], order: 9, fmt: "usdk", bad: "low", chg: "pct", context: true, ...BIG,
+    note: "A gauge of risk appetite that trades around the clock, so it moves on weekends when stock markets are shut. Live from Coinbase.",
     source: "https://www.coinbase.com/price/bitcoin",
   }, async (ctx) => ({ ...(await coinbase(ctx, "BTC-USD")), perWeek: 7 })),
   price("gold", {
-    name: "Gold", label: "Gold", fmt: "usd0", bad: "both", chg: "pct", cap: 15,
+    name: "Gold", label: "Gold", rowLabel: ["Gold", "safe haven"], order: 8, fmt: "usd0", bad: "both", chg: "pct", context: true, ...BIG,
     note: "A spike means a flight to safety. A deep slide while stocks and Bitcoin also fall can mean investors are selling everything to raise cash. Priced from PAXG, a token backed by one ounce of gold that trades around the clock and tracks spot within about half a percent.",
     source: "https://www.coinbase.com/price/pax-gold",
   }, async (ctx) => ({ ...(await coinbase(ctx, "PAXG-USD")), perWeek: 7 })),
   price("hy-spread", {
-    name: "High-yield credit spread", label: "Junk spread", fmt: "pct2", bad: "high", chg: "abs",
+    name: "Junk spread, what risky companies pay to borrow", label: "Junk spread", rowLabel: ["Junk spread", "risky company debt"], order: 5, fmt: "pct2", bad: "high", chg: "abs", ...BIG,
     abs: { x: [3, 4, 5, 7, 10], s: [0, 10, 35, 65, 90] },
-    note: "What risky companies pay to borrow, over the government's rate. Published daily, one day behind.",
+    note: "The extra interest risky companies pay over the government's rate. It widens when lenders get nervous. Published daily, one day behind.",
     source: "https://fred.stlouisfed.org/series/BAMLH0A0HYM2",
   }, async (ctx) => {
     const rows = await fred(ctx, "BAMLH0A0HYM2");
     return { hist: rows.map((r) => r.v), dates: rows.map((r) => r.date), asOf: dayLabel(rows.at(-1).date) + " close" };
   }),
   price("stlfsi", {
-    name: "St. Louis Fed Financial Stress Index", label: "Fed stress", fmt: "num2", bad: "high", chg: "abs",
+    name: "Financial stress index, St. Louis Fed", label: "Fed stress", rowLabel: ["Fed stress", "St. Louis Fed index"], order: 6, fmt: "num2", bad: "high", chg: "abs", levelOnly: true,
     abs: { x: [0, 1, 2, 4], s: [0, 30, 60, 90] },
-    note: "One number combining 18 market measures. Below zero means less stress than average. Published weekly.",
+    note: "One number combining 18 market measures. Zero is average, and below zero means less stress than average. Published weekly, so it confirms more than it warns.",
     source: "https://fred.stlouisfed.org/series/STLFSI4",
   }, async (ctx) => {
     const rows = await fred(ctx, "STLFSI4");
@@ -135,11 +138,12 @@ export default [
       need(icons.length >= 10, "Fed status icons not found");
       const disrupted = icons.filter((a) => /Disruption/i.test(a)).length, issues = icons.filter((a) => /Issue/i.test(a)).length;
       return {
-        name: "Fed payment services", label: "Fed payments", tile: "money", scope: "national", kind: "status",
+        name: "Federal Reserve payment services", label: "Fed payments", rowLabel: ["Fed payments", "wires, ACH, FedNow"], order: 1, tile: "money", scope: "national", kind: "status",
         state: disrupted >= 3 ? "critical" : disrupted ? "major" : issues ? "minor" : "ok",
-        short: `${icons.length - disrupted - issues} of ${icons.length}`,
+        short: disrupted ? `${disrupted} of ${icons.length} disrupted` : issues ? `${issues} of ${icons.length} with issues` : `all ${icons.length} running`,
+        scoreNote: "One service with an issue counts 10, one disrupted 40, and three or more disrupted 80.",
         track: { disrupted, issues },
-        note: disrupted || issues ? `${disrupted} services disrupted and ${issues} with an issue, out of ${icons.length} including Fedwire, FedACH and FedNow.` : "Fedwire, FedACH, FedNow, Check 21 and the rest are all at normal operations.",
+        note: (disrupted || issues ? `${disrupted} services disrupted and ${issues} with an issue, out of ${icons.length} including Fedwire, FedACH and FedNow.` : "Fedwire, FedACH, FedNow, Check 21 and the rest are all at normal operations.") + " These carry paychecks, bill payments and bank-to-bank transfers.",
         source: "https://www.frbservices.org/service-status/",
       };
     },
@@ -156,11 +160,12 @@ export default [
       const paypal = down.length >= 5 ? "major" : down.length ? "minor" : "ok";
       const items = [...plaid.incidents.map((i) => "Plaid: " + clip(i.name, 100)), ...down.slice(0, 3).map((c) => `PayPal ${c.name}: ${c.status.production}`)];
       return {
-        name: "Payment rails (Plaid and PayPal)", label: "Payment rails", tile: "money", scope: "national", kind: "status",
+        name: "Payment apps, Plaid and PayPal", label: "Payment apps", rowLabel: ["Payment apps", "Plaid, PayPal"], order: 2, tile: "money", scope: "national", kind: "status",
         state: rank[Math.max(rank.indexOf(plaid.state), rank.indexOf(paypal))],
-        short: items.length ? `${items.length} flagged` : "Plaid, PayPal",
+        short: items.length ? `${items.length} flagged` : "no incidents",
+        scoreNote: "A minor incident at either counts 10, a major one 40 and a critical one 80. Five or more PayPal services down counts as major.",
         track: { plaid: plaid.incidents.length, paypal: down.length },
-        note: "One merged reading. Plaid connects apps to most US banks, so a bank-wide login problem tends to show here.",
+        note: "One merged reading. Plaid connects apps to most US banks, so a bank-wide login problem tends to show here. PayPal's page also covers Venmo.",
         items: items.slice(0, 4),
         source: "https://status.plaid.com/",
       };

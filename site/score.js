@@ -41,7 +41,7 @@ export function live(f, now = Date.now()) { const a = age(f.checkedAt, now); ret
 export function fresh(f, now = Date.now()) { const a = age(f.checkedAt, now); return f.ok !== false && a != null && a < FRESH_MS; }
 
 /* ---- number formats ---- */
-export function commas(n, d) { return n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }); }
+export function commas(n, d) { return n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/^-/, "\u2212"); }
 export function fmt(v, f) {
   if (v == null) return "–";
   switch (f) {
@@ -79,6 +79,14 @@ export function moveOver(f, n) {
 export function sizeText(f, x) { return isPct(f) ? x.toFixed(1) + "%" : f.fmt === "pct2" ? Math.round(x * 100) + " bp" : x.toFixed(2); }
 export function moveText(f, m) { return m == null ? "" : signed(m, sizeText(f, Math.abs(m))); }
 
+// The x where a rising table first reaches y, or null if it never does.
+function unInterp(table, y) {
+  for (let i = 1; i < table.length; i++) {
+    const a = table[i - 1], b = table[i];
+    if (y >= a[1] && y <= b[1] && b[1] > a[1]) return a[0] + ((b[0] - a[0]) * (y - a[1])) / (b[1] - a[1]);
+  }
+  return null;
+}
 export function interp(table, x) {
   if (x <= table[0][0]) return table[0][1];
   for (let i = 1; i < table.length; i++) {
@@ -105,7 +113,8 @@ function priceCalc(f) {
     ? [["1w", "week", 1, num(f.bigA)], ["1m", "month", 4, num(f.bigB)]]
     : [["1d", "day", 1, num(f.bigA)], ["1w", "week", w, num(f.bigB)]];
   let sMove = 0, best = null;
-  wins.forEach((x) => {
+  // A reading published as an index of stress is read by its level alone.
+  (f.levelOnly ? [] : wins).forEach((x) => {
     const m = moveOver(f, x[2]);
     if (m == null || !x[3]) return;
     const r = adv(m) / x[3], pts = r > 0 ? interp(CURVE, r) : 0;
@@ -121,6 +130,8 @@ function priceCalc(f) {
     if (sLevel >= 1) reasons.push("is at " + fmt(v, f.fmt) + ", above the " + fmt(start, f.fmt) + " where its scale starts to count");
     out.lines.push(Math.round(sLevel) + " for its level. Its own scale runs " + table.map((p) => fmt(p[0], f.fmt) + " = " + p[1]).join(", ") + ".");
     out.sev = Math.max(sLevel, sMove);
+    // Where along the 12-month bar the level reaches Watch.
+    if (hasRange) { const at = unInterp(table, 10); if (at != null && at < hi) out.zones = [[clamp((at - lo) / (hi - lo), 0, 1), 1]]; }
   } else if (hasRange) {
     const p = f.bad === "high" ? pos : f.bad === "low" ? 1 - pos : Math.abs(pos - 0.5) * 2;
     let sPos = Math.max(0, (p - 0.75) / 0.25) * 20;
@@ -131,6 +142,7 @@ function priceCalc(f) {
     const quarter = f.bad === "high" ? "The top quarter of that range adds up to 20." : f.bad === "low" ? "The bottom quarter of that range adds up to 20." : "The outer quarter at either end adds up to 20.";
     out.lines.push(Math.round(sPos) + " for where it sits: " + Math.round(pos * 100) + "% of the way up from its 12-month low to its high. " + quarter + (easing ? " Cut here because the past week moved back toward normal." : ""));
     out.sev = sPos + sMove;
+    out.zones = f.bad === "high" ? [[0.75, 1]] : f.bad === "low" ? [[0, 0.25]] : [[0, 0.125], [0.875, 1]];
   } else {
     out.lines.push("0 for where it sits. This reading doesn't have a year of history yet.");
     out.sev = sMove;
@@ -142,12 +154,22 @@ function priceCalc(f) {
   } else if (best) {
     out.lines.push("0 for the move: it " + moved(best.m) + " in the past " + best.word + ", which is the harmless direction.");
   }
-  out.lines.push("A big move is one larger than 95% of the past year's. One that size scores 20, twice that 50, four times 90." + (table.length ? " The signal is the higher of level and move." : hasRange ? " Position and move add together." : ""));
+  const pct = num(f.bigPct) || 95;
+  if (f.levelOnly) out.lines.push("Only the level counts. It comes out weekly, so its moves are old news by the time they show.");
+  else out.lines.push("A big move is one larger than " + pct + "% of the past year's" + (pct >= 99 ? ", which happens two or three times a year" : "") + ". One that size scores 20, twice that 50, four times 90." + (table.length ? " The signal is the higher of level and move." : hasRange ? " Position and move add together." : ""));
   out.lines.push(counts);
+  // The window that is doing the scoring, for the row to quote.
+  if (best && best.r > 0 && sMove >= 5) out.moved = { label: best.label, m: best.m };
   const cap = num(f.cap);
   if (cap != null && out.sev > cap) { out.lines.push("Capped at " + cap + ", because it's context and can't break anything by itself."); out.sev = cap; }
   const name = String(f.label || f.name || "It");
   out.why = reasons.length ? name + " " + reasons.join(" and ") + "." : name + " is inside its normal range and its recent moves are ordinary.";
+  if (f.context) {
+    // Kept on the tile to read alongside the scored gauges. It can't move a dial.
+    out.sev = 0; out.unscored = true; out.zones = null; out.moved = null;
+    out.lines = ["Shown for context. It doesn't add to the score."];
+    out.why = reasons.length ? name + " " + reasons.join(" and ") + ". It isn't scored." : name + " is inside its normal range. It isn't scored.";
+  }
   return out;
 }
 
@@ -476,7 +498,8 @@ export function rowText(f, c, now = Date.now()) {
   const k = f.kind;
   if (f.ok === false) return ["No reading", ""];
   if (!live(f, now)) return ["Expired", ""];
-  if (k === "price") return [fmt(num(f.num), f.fmt), c.head == null ? "" : moveText(f, c.head) + " 1w"];
+  // The move quoted is the week's, unless the day's move is the one doing the scoring.
+  if (k === "price") return [fmt(num(f.num), f.fmt), c.moved && c.moved.label === "1d" ? moveText(f, c.moved.m) + " 1d" : c.head == null ? "" : moveText(f, c.head) + " 1w"];
   if (k === "level") { const s = arr(f.steps); return [String(s[clamp(Math.round(num(f.step) || 0), 0, Math.max(0, s.length - 1))] || "Level " + f.step), String(f.short || "")]; }
   if (k === "status") return [STATE_WORD[f.state] || "Unknown", String(f.short || "")];
   if (k === "trains") {

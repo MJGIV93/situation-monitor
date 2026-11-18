@@ -101,7 +101,8 @@ export function touchesBox(geometry, [w, s, e, n]) {
 // hist: values oldest to newest, the last one being the current value.
 // perWeek: points per week (5 trading days, 7 calendar days, or 1 for weekly data).
 // Returns the fields every price reading carries: range, median, and what a large move is.
-export function priceFields(hist, perWeek, chg, dates) {
+// big: the share of the past year's moves a "big move" has to beat.
+export function priceFields(hist, perWeek, chg, dates, big = 0.95) {
   const year = perWeek === 1 ? 52 : perWeek === 7 ? 365 : 252;
   const h = hist.slice(-(year + 1));
   const move = (n) => {
@@ -119,13 +120,14 @@ export function priceFields(hist, perWeek, chg, dates) {
     num: round(h.at(-1), 4),
     lo: round(Math.min(...h), 4),
     hi: round(Math.max(...h), 4),
-    med: round(median(h), 4),
+    // The median of earlier closes, so the live price can't be its own median.
+    med: round(median(h.length > 2 ? h.slice(0, -1) : h), 4),
     series: h.slice(-keep).map((x) => round(x, 4)),
     dates: dates && dates.length === hist.length ? dates.slice(-keep) : undefined,
     wk: perWeek,
     chg,
-    bigA: round(pctile(move(1), 0.95), d),
-    bigB: round(pctile(move(perWeek === 1 ? 4 : perWeek), 0.95), d),
+    bigA: round(pctile(move(1), big), d),
+    bigB: round(pctile(move(perWeek === 1 ? 4 : perWeek), big), d),
   };
 }
 
