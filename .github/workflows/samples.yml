@@ -1,0 +1,33 @@
+name: samples
+
+# Development aid. Saves raw source responses to the samples branch.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [fetcher/sample.mjs]
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node fetcher/sample.mjs
+      - name: Save samples
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd samples
+          git init --quiet --initial-branch samples
+          git config user.name "situation-monitor"
+          git config user.email "situation-monitor@users.noreply.github.com"
+          git add --all
+          git commit --quiet --message "samples $(date -u +%FT%TZ)"
+          git push --quiet --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" samples
