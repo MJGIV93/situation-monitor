@@ -51,14 +51,15 @@ export default [
       const source = "https://www.fema.gov/disaster/declarations";
       return [
         {
-          id: "fema", name: "FEMA disaster declarations", label: "FEMA, national", tile: "gov", scope: "national", kind: "events", rule: "context",
-          events: recent.map(femaEvent), short: `${recent.length} in 30 days`,
+          id: "fema", name: "Federal disaster declarations, nationwide", label: "Federal disasters", rowLabel: ["Federal disasters", "FEMA, nationwide"], order: 3, tile: "gov", scope: "national", kind: "events", rule: "context",
+          events: recent.map(femaEvent), idle: recent.length ? String(recent.length) : "None", short: "past 30 days",
           note: "Federal declarations usually come days after the event, so this confirms more than it warns.", source,
         },
         {
-          id: "fema-home", name: "FEMA declarations covering Morris County or Manhattan", label: "FEMA, local", tile: "gov", scope: "home", kind: "events", rule: "femaHome",
-          events: local.map(femaEvent), short: local.length ? "declared" : "none in 30 days",
-          note: "Declarations from the past 30 days that name Morris County, Manhattan, or either state as a whole.", source,
+          // Listed on the tile only when there is one.
+          id: "fema-home", name: "Federal disaster declaration covering Morris County or Manhattan", label: "Federal disaster, local", rowLabel: ["Federal disaster", "FEMA, Morris or NYC"], order: 4, hideIdle: true, tile: "gov", scope: "home", kind: "events", rule: "femaHome",
+          events: local.map(femaEvent), idle: "None", short: "past 30 days", lead: local.length ? ["Declared", etDay(Date.parse(local[0].date))] : undefined,
+          note: "Declarations from the past 30 days that name Morris County, Manhattan, or either state as a whole. A declaration usually follows the event by days, so it counts for a week and then stays listed as a record.", source,
         },
       ];
     },
@@ -68,10 +69,16 @@ export default [
     every: 20,
     async run(ctx) {
       const events = await ntas(ctx);
-      const base = { tile: "gov", kind: "events", rule: "ntas", events, short: events.length ? events[0].type : "none active", source: "https://www.dhs.gov/national-terrorism-advisory-system" };
+      const top = events.find((e) => e.type === "imminent") ?? events.find((e) => e.type === "elevated") ?? events[0];
+      const base = {
+        tile: "gov", kind: "events", rule: "ntas", events, idle: "None", short: "in effect",
+        lead: top ? [top.type[0].toUpperCase() + top.type.slice(1), events.length > 1 ? `${events.length} advisories` : "DHS advisory"] : undefined,
+        source: "https://www.dhs.gov/national-terrorism-advisory-system",
+      };
       return [
-        { ...base, id: "ntas", name: "DHS terrorism advisories", label: "DHS advisories", scope: "national", note: "National Terrorism Advisory System." },
-        { ...base, id: "ntas-home", name: "DHS terrorism advisories, New York area", label: "DHS advisories", scope: "home", half: true, note: "The same national feed. It counts at half strength here unless the alert names the New York area." },
+        { ...base, id: "ntas", name: "Terrorism advisories, DHS", label: "Terror advisories", rowLabel: ["Terror advisories", "DHS"], order: 1, scope: "national", note: "The National Terrorism Advisory System. DHS issues a bulletin for a general trend and an alert for a specific threat." },
+        // The same feed again for Home. It is listed on the tile only while an advisory is in effect.
+        { ...base, id: "ntas-home", name: "Terrorism advisories, New York area", label: "Terror advisories, local", rowLabel: ["Terror advisories", "DHS, New York area"], order: 3, hideIdle: true, scope: "home", half: true, note: "The same national feed. It counts at half strength here unless the advisory names the New York area." },
       ];
     },
   },
@@ -90,11 +97,12 @@ export default [
       const nearby = units.filter(([u]) => /^(Salem|Hope Creek|Limerick)/i.test(u)).map(([u, p]) => `${u} ${p}%`);
       const declared = classes.filter((c) => !/Non Emergency/i.test(c));
       return {
-        name: "NRC nuclear plant status", label: "Nuclear plants", tile: "gov", scope: "national", kind: "status",
+        name: "Nuclear plants, NRC status", label: "Nuclear plants", rowLabel: ["Nuclear plants", "NRC, nationwide"], order: 2, tile: "gov", scope: "national", kind: "status",
         state: worst,
-        short: `${full} of ${units.length} full`,
+        short: worst === "ok" ? "no emergencies" : worst === "minor" ? "unusual event" : worst === "major" ? "plant alert" : "emergency",
+        scoreNote: "An unusual event at any US plant counts 10, a plant alert 40, and a site-area or general emergency 80.",
         track: { full, offline: off.length, reports: classes.length, declared: declared.length },
-        note: `${off.length} reactors offline. ${classes.length} event reports today, ${declared.length ? declared.length + " with a declared emergency class (" + [...new Set(declared)].join(", ") + ")" : "none declaring an emergency"}. Nearest plants: ${nearby.join(", ")}.`,
+        note: `${full} of ${units.length} reactors are at full power and ${off.length} are offline, which is normal for refueling season. ${classes.length} event report${classes.length === 1 ? "" : "s"} today, ${declared.length ? declared.length + " with a declared emergency class (" + [...new Set(declared)].join(", ") + ")" : "none declaring an emergency"}. Nearest plants: ${nearby.join(", ")}.`,
         source: "https://www.nrc.gov/reading-rm/doc-collections/event-status/reactor-status/ps.html",
       };
     },
@@ -115,16 +123,22 @@ export default [
           const entered = strip(s.match(/<p class="time">([\s\S]*?)<\/p>/)?.[1] ?? "");
           const text = strip((s.match(/<p class="time">[\s\S]*?<\/p>\s*<p>([\s\S]*?)<\/p>/)?.[1] ?? "").replace(/<a[\s\S]*?<\/a>/g, ""));
           const ago = relativeMs(entered);
-          if (text) posts.push({ event: clip(`${agency}: ${text}`, 170), tier, at: new Date(ctx.now - ago).toISOString(), text: agoText(ago), urgent: URGENT.test(text) || undefined, ago });
+          if (text) posts.push({ event: clip(`${agency}: ${text}`, 170), tier, at: new Date(ctx.now - ago).toISOString(), text: agoText(ago), urgent: URGENT.test(text) || undefined, ago, key: text.toLowerCase().replace(/[^a-z]+/g, " ").trim().slice(0, 60) });
         }
       }
       need(missing.length < pages.length, "neither Nixle page answered");
       posts.sort((x, y) => x.ago - y.ago);
+      // Two days of notices, with reposts of the same notice dropped.
+      const seen = new Set();
+      const recent = posts.filter((p) => p.ago < 2 * 86400e3).filter((p) => !seen.has(p.key) && seen.add(p.key));
+      // What counts: an advisory or alert from the past day, or anything worded as urgent.
       const last = posts[0];
       return {
-        name: "Morristown and Morris Township alerts (Nixle)", label: "Town alerts", tile: "gov", scope: "home", kind: "events", rule: "town",
-        events: posts.slice(0, 6).map(({ ago, ...p }) => p),
-        short: last ? "last " + agoText(last.ago) : "none posted",
+        name: "Town alerts, Morristown and Morris Township", label: "Town alerts", rowLabel: ["Town alerts", "police, both towns"], order: 1, tile: "gov", scope: "home", kind: "events", rule: "town",
+        // With nothing in two days, the latest post stays listed so the feed is seen to be alive.
+        events: (recent.length ? recent.slice(0, 6) : posts.slice(0, 1)).map(({ ago, key, ...p }) => p),
+        // The row's wording is worked out on the page from the notice times, since notices age between checks.
+        idle: "No alerts", short: last ? "latest " + agoText(last.ago) : "no posts listed",
         note: "The public pages behind the text alerts from Morristown Police and Morris Township Police. Both also relay SMCMUA water notices." + (missing.length ? ` The ${missing[0]} page didn't answer on the last check.` : ""),
         source: "https://nixle.us/city/nj/morris/",
       };

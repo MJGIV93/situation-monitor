@@ -32,6 +32,7 @@ const HOUR = 3600e3;
 export function clamp(x, a, b) { return Math.max(a, Math.min(b, x)); }
 export function num(x) { if (x == null || x === "") return null; const n = Number(x); return isFinite(n) ? n : null; }
 export function arr(x) { return Array.isArray(x) ? x : []; }
+function short(s, n) { s = String(s); return s.length > n ? s.slice(0, n - 1).replace(/[\s,;:.]+\S*$/, "") + "\u2026" : s; }
 export function band(s) { return s >= 75 ? 4 : s >= 50 ? 3 : s >= 25 ? 2 : s >= 10 ? 1 : 0; }
 export function tileName(id) { const t = TILES.find((x) => x.id === id); return t ? t.name : id; }
 export function age(iso, now = Date.now()) { const t = Date.parse(iso); return isNaN(t) ? null : now - t; }
@@ -288,7 +289,11 @@ const EVENT_RULES = {
     const k = fade(e.at, now, 72, 168);
     return { pts: base * k, why: "Level " + e.level + " update " + base + (k === 1 ? "" : k ? ", halved after 3 days" : ", over a week old") };
   },
-  femaHome() { return { pts: 40, why: "a federal declaration covering your county scores 40" }; },
+  femaHome(e, now) {
+    // A declaration follows the event by days, so it is a short confirmation and then a record.
+    const fresh = now - Date.parse(e.at) < 7 * 24 * HOUR;
+    return { pts: fresh ? 20 : 0, why: fresh ? "a federal declaration covering your county scores 20 for a week" : "declared more than a week ago" };
+  },
   context() { return { pts: 0, why: "context only" }; },
 };
 const EVENT_NOTES = {
@@ -296,11 +301,11 @@ const EVENT_NOTES = {
   town: "Community notices score 0, advisories 12, alerts 55, and 80 for wording like boil water, evacuate or shelter in place. A notice fades after 6 hours and drops off after 24.",
   quakeHome: "Scored by magnitude and distance from Morristown. Within 60 miles: 10 at magnitude 2.5, 30 at 3.5, 55 at 4.5, 85 at 5.5.",
   quakeUS: "Only US quakes count: 25 at magnitude 6, 60 at 7, more if USGS rates the impact orange or red.",
-  ntas: "A bulletin scores 20, an Elevated alert 60, an Imminent alert 90.",
+  ntas: "A bulletin scores 20, an Elevated alert 60, an Imminent alert 90. Nothing is in effect most of the time.",
   cyberAlert: "A patch alert scores 8, an alert about active exploitation 30, an emergency directive 50. Each fades after 3 days and drops off after 7.",
   vip: "A VIP flight restriction over the New York area scores 10 on the day and the day before.",
   travel: "A new or reissued Level 4 advisory scores 20, a Level 3 scores 5. Each fades after 3 days and drops off after 7.",
-  femaHome: "Scores 40 while a federal declaration from the past 30 days covers Morris County or Manhattan.",
+  femaHome: "A federal declaration covering Morris County or Manhattan scores 20 for a week after it is declared. After that it stays listed and stops counting.",
   context: "Shown for context. It doesn't add to the score.",
 };
 function eventCalc(f, now) {
@@ -308,7 +313,7 @@ function eventCalc(f, now) {
   const ev = arr(f.events).map((e) => ({ e, ...rule(e, now, f) }));
   const top = ev.reduce((a, b) => (b.pts > (a ? a.pts : -1) ? b : a), null);
   const r = { sev: top ? top.pts : 0, lines: [], ev: ev.map((x) => Math.round(x.pts)), active: ev.filter((x) => x.pts > 0).length };
-  if (top && top.pts > 0) r.lines.push("Highest: " + (top.e.event || top.e.title || "event") + ", " + top.why + ".");
+  if (top && top.pts > 0) r.lines.push("Highest: " + short(top.e.event || top.e.title || "event", 70) + ", " + top.why + ".");
   r.lines.push(EVENT_NOTES[f.rule] || EVENT_NOTES.context);
   if (!EVENT_RULES[f.rule] || f.rule === "context") r.unscored = true;
   r.why = top && top.pts > 0 ? (r.active === 1 ? "One item is active" : r.active + " items are active") + ", and the highest sets the signal." : arr(f.events).length ? "Nothing listed is recent or serious enough to count." : "Nothing is active.";
@@ -359,7 +364,7 @@ export function calc(f, now = Date.now()) {
     r.why = "Its level is " + String(steps[st] || st + 1) + (arr(f.ladder)[st] ? " (" + f.ladder[st] + ")." : ".");
   } else if (k === "status") {
     r.sev = STATE_SEV[f.state] || 0;
-    r.lines.push("Status pages score 0 for OK, 10 for minor, 40 for major and 80 for critical.");
+    r.lines.push(String(f.scoreNote || "Status pages score 0 for OK, 10 for minor, 40 for major and 80 for critical."));
     r.why = r.sev ? "It reports a " + f.state + " problem." : "It reports no problems.";
   } else if (k === "lines") {
     const pick = (s) => arr(f.lines).filter((l) => l && l.s === s).map((l) => l.id);
@@ -501,8 +506,18 @@ export function rowText(f, c, now = Date.now()) {
   if (k === "events") {
     // A reading can name its own largest event (an earthquake's magnitude) even when nothing counts.
     if (f.top && num(f.top.mag) != null) return ["M" + f.top.mag.toFixed(1), String(f.top.where || "")];
+    // A reading can word its own row while something is on (the day of a visit, the level of an advisory).
+    if (Array.isArray(f.lead) && f.lead.length) return [String(f.lead[0] || ""), String(f.lead[1] || "")];
+    // Town notices age between checks, so their wording is worked out here from the notice times.
+    if (f.rule === "town") {
+      const ev = arr(f.events), on = ev.filter((e, i) => arr(c.ev)[i] > 0), hot = on.filter((e) => e.urgent || e.tier === "alert");
+      const ago = (e) => { const m = Math.max(0, Math.round((now - Date.parse(e.at)) / 60000)); return m < 60 ? m + " min ago" : m < 2880 ? Math.round(m / 60) + " hr ago" : Math.round(m / 1440) + "d ago"; };
+      if (!on.length) return [String(f.idle || "No alerts"), ev.length ? "latest " + ago(ev[0]) : "no posts listed"];
+      const n = hot.length || on.length;
+      return [n === 1 ? (hot.length ? "Alert" : "Advisory") : n + (hot.length ? " alerts" : " advisories"), "latest " + ago((hot[0] || on[0]))];
+    }
     const unit = f.unit ? " " + f.unit + (c.active === 1 ? "" : "s") : " active";
-    return [c.active ? c.active + unit : String(f.idle || "Clear"), String(f.short || "")];
+    return [c.active ? c.active + unit : String(f.idle || "None"), String(f.short || "")];
   }
   if (k === "count") return [commas(num(f.num) || 0, 0), String(f.short || "")];
   return [String(f.value || "–"), String(f.short || "")];

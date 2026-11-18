@@ -222,7 +222,6 @@ body.wall .tail, body.wall .how { display: none; }
 /* Quiet rows keep neutral instruments, so color in an instrument always means something is happening. */
 .rd.q .rv b { color: var(--mid); font-weight: 500; }
 .rd.q .steps i.on, .rd.q .pips i, .rd.q .range i { background: var(--mid); }
-.rd.q .lamp { height: 2px; background: var(--line); }
 .rd.q .bullets i, .rd.q .ports i { border-color: var(--mid); color: var(--mid); }
 .grp[data-band="0"] b { color: var(--mid); }
 .legendrow { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 8px; }
@@ -258,7 +257,6 @@ body.wall .tail, body.wall .how { display: none; }
 .ports i[data-s="delays"] { border-color: var(--b1); color: var(--b1); }
 .ports i[data-s="program"] { border-color: var(--b2); color: var(--b2); }
 .ports i[data-s="stop"], .ports i[data-s="closed"] { border-color: var(--b3); color: var(--b3); }
-.lamp { height: 8px; border-radius: 1px; background: var(--c, var(--b0)); }
 .none { height: 1px; background: var(--line); }
 
 /* row detail */
@@ -687,6 +685,9 @@ function renderDial(id, scope) {
   renderTimeline(sparkbox, scope);
 }
 
+// A reading that repeats another one for Home stays off the lists until it has something to show.
+function tucked(f) { return !!f.hideIdle && !arr(f.events).length; }
+
 /* ---- instrument rows ---- */
 function instrument(f, c) {
   const k = f.kind;
@@ -740,8 +741,12 @@ function instrument(f, c) {
     const mag = f.top && num(f.top.mag);
     if (mag != null) { const m = el("i"); m.style.left = (clamp((mag - 2) / 6, 0, 1) * 100).toFixed(1) + "%"; box.appendChild(m); }
     box.title = "Magnitude 2 to 8" + (mag != null ? ", largest M" + mag.toFixed(1) : "");
-  } else if (k === "events") {
-    box = el("div", "lamp");
+  } else if (k === "events" && !c.unscored) {
+    // One segment for each band above Quiet: Watch, Elevated, Disrupted, Severe.
+    box = el("div", "steps");
+    const lit = band(c.sev);
+    for (let i = 1; i <= 4; i++) box.appendChild(el("i", i <= lit ? "on" : ""));
+    box.title = "Watch, Elevated, Disrupted, Severe";
   } else {
     box = el("div", "none");
   }
@@ -1053,7 +1058,7 @@ function panelExtras(f, c) {
     }
   }
 
-  const sibs = state.feeds.filter((x) => x.tile === f.tile && x.scope === f.scope && x.id !== f.id).sort((a, b) => sev(b) - sev(a) || (num(a.order) || 50) - (num(b.order) || 50) || String(a.label).localeCompare(String(b.label)));
+  const sibs = state.feeds.filter((x) => x.tile === f.tile && x.scope === f.scope && x.id !== f.id && !tucked(x)).sort((a, b) => sev(b) - sev(a) || (num(a.order) || 50) - (num(b.order) || 50) || String(a.label).localeCompare(String(b.label)));
   if (sibs.length) {
     const s = section("Also in " + tileName(f.tile) + ", " + scopeName);
     sibs.forEach((x) => {
@@ -1234,7 +1239,8 @@ function renderDomains() {
   if (wx) host.appendChild(wx);
   TILES.forEach((t) => {
     // Readings shown on a widget card of their own (weather alerts) or lent to another tile are left off this one.
-    const feeds = state.feeds.filter((f) => f.tile === t.id && !f.card && !f.showIn);
+    // A reading that repeats another one for Home is listed only while it has something to show.
+    const feeds = state.feeds.filter((f) => f.tile === t.id && !f.card && !f.showIn && !tucked(f));
     const guests = state.feeds.filter((f) => f.showIn === t.id);
     if (!feeds.length) return;
     const card = el("section", "card dom"), head = el("div", "domhead");

@@ -105,6 +105,10 @@ export default [
       };
       const place = (t) => String(t.description).split(/, (?:Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day/)[0].trim().replace(/\b([A-Z])([A-Z]+)\b/g, (x, a, b) => (x.length > 2 ? a + b.toLowerCase() : x));
       const local = vip.filter((t) => /^(NY|NJ)$/.test(t.state) && /New York|Newark|Morristown|Bedminster|Teterboro|Manhattan/i.test(t.description));
+      // Visits still ahead or under way, soonest first. One counts from the day before through the day itself.
+      const visits = local.filter((t) => isFinite(when(t)) && when(t) > ctx.now - 18 * 3600e3).sort((a, b) => when(a) - when(b));
+      const soon = visits.filter((t) => when(t) < ctx.now + 36 * 3600e3);
+      const dayOf = (t) => (etDay(when(t)) === etDay(ctx.now) ? "Today" : etDay(when(t)) === etDay(ctx.now + 86400e3) ? "Tomorrow" : etDay(when(t)));
       const source = "https://tfr.faa.gov/tfr3/";
       return [
         {
@@ -115,9 +119,10 @@ export default [
           source, track: { all: list.length, vip: vip.length, security: security.length },
         },
         {
-          id: "tfr-home", name: "VIP flight restrictions over New York and New Jersey", label: "VIP visits", tile: "gov", scope: "home", kind: "events", rule: "vip",
-          events: local.filter((t) => isFinite(when(t))).map((t) => ({ event: `VIP movement: ${place(t)}`, at: new Date(when(t)).toISOString(), text: etDay(when(t)) })),
-          short: local.length ? "restricted" : "none scheduled",
+          id: "tfr-home", name: "VIP visit, flight restrictions over New York and New Jersey", label: "VIP visit", rowLabel: ["VIP visit", "airspace over NYC"], order: 2, tile: "gov", scope: "home", kind: "events", rule: "vip",
+          events: visits.map((t) => ({ event: `VIP movement: ${place(t)}`, at: new Date(when(t)).toISOString(), text: etDay(when(t)) })),
+          idle: "None", short: "none scheduled",
+          lead: soon.length ? [dayOf(soon[0]), clip(place(soon[0]), 22)] : visits.length ? ["None soon", "next " + etDay(when(visits[0]))] : undefined,
           note: "A presidential or vice presidential visit closes airspace and usually snarls Midtown traffic and Penn Station access. It scores a little on the day and the day before, as a heads-up.",
           source,
         },
