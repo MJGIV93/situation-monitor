@@ -10,7 +10,9 @@ export async function statuspage(ctx, host) {
   const incidents = (j.incidents ?? []).filter((i) => !/resolved|postmortem/i.test(i.status))
     .map((i) => ({ ...i, parts: (i.components ?? []).filter(Boolean).map((c) => ({ name: String(c.name ?? ""), group: groupName[c.group_id] ?? "" })) }));
   const flagged = (j.components ?? []).filter((c) => c.status && c.status !== "operational" && c.status !== "under_maintenance" && !c.group);
-  return { state: INDICATOR[j.status.indicator] ?? "minor", incidents, flagged, total: (j.components ?? []).length };
+  // Data centers are listed as "Paris, France - (CDG)" under a region group.
+  const places = (j.components ?? []).map((c) => ({ m: String(c.name ?? "").match(/^(.+?),\s*(.+?)\s*-\s*\(([A-Z]{3})\)/), group: groupName[c.group_id] ?? "" })).filter((x) => x.m).map((x) => ({ city: x.m[1], code: x.m[3], group: x.group }));
+  return { state: INDICATOR[j.status.indicator] ?? "minor", incidents, flagged, total: (j.components ?? []).length, places };
 }
 function statusDoc({ id, host, name, label, source, note = "", w, wWhy }) {
   return {
@@ -76,8 +78,12 @@ export default [
       const s = await statuspage(ctx, "www.cloudflarestatus.com");
       const CORE = /^(CDN\/Cache|Authoritative DNS|Recursive DNS|DNS Root Servers|Network|Infrastructure|Firewall|Challenge Platform|Turnstile|WebSockets|Load Balancing)/i;
       const REGION = /^(North America|Europe|Latin America|Asia|Africa|Middle East|Oceania)/i;
+      const word = (w) => new RegExp("(^|[^A-Za-z])" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "([^A-Za-z]|$)");
       const counts = (i) => {
         if (i.impact === "major" || i.impact === "critical") return true;
+        // An incident that names a city or airport code is about that data center, whatever service it is filed under.
+        const named = s.places.filter((p) => word(p.city).test(i.name) || word(p.code).test(i.name));
+        if (named.length) return named.some((p) => /^North America/i.test(p.group));
         const places = i.parts.filter((p) => REGION.test(p.group)), services = i.parts.filter((p) => !REGION.test(p.group));
         // A problem at data centers counts when one of them is in North America.
         if (places.length && !services.length) return places.some((p) => /^North America/i.test(p.group));
