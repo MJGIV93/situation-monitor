@@ -1,4 +1,9 @@
-import { json, need, fetchOk, strip, clip, commas, short, pct } from "../lib/util.mjs";
+import { json, need, fetchOk, strip, clip, commas, short, pct, etDay } from "../lib/util.mjs";
+
+// Notices sent by text that the utility hasn't added to its alerts page yet.
+const UNLISTED = [
+  { url: "https://www.smcmua.org/WaterRepairs_208LakeRd_MorrisTwp.htm", title: "Water Repairs in Morris Township - Lake Road", at: Date.parse("2026-11-18T02:04:44Z") },
+];
 
 const SHARE_STEPS = ["Normal", "Scattered", "Elevated", "Major", "Severe"];
 const SHARE_LADDER = ["under 0.1% out", "0.1% to 0.5%", "0.5% to 2%", "2% to 10%", "over 10%"];
@@ -137,24 +142,44 @@ export default [
   },
   {
     id: "smcmua",
-    every: 30,
+    every: 10,
     async run(ctx) {
-      const text = strip(await fetchOk(ctx, "https://www.smcmua.org/"));
-      need(/Southeast Morris County/i.test(text), "not the SMCMUA page");
-      // The standing emergency phone line is boilerplate, not a notice.
-      const body = text.replace(/24-Hour Emergencies[^.]*?\d{3}-\d{3}-\d{4}/i, " ");
-      const major = body.match(/boil[- ]water|do not drink|do not use|water emergency|contaminat\w+/i);
-      const minor = body.match(/main break|water main|low pressure|discolou?red water|service interruption|water restriction|outage/i);
-      const hit = major ?? minor;
-      let near = "";
-      if (hit) near = clip(body.slice(Math.max(0, hit.index - 80), hit.index + 160), 200);
+      // Notices are listed on the utility's alerts page, each linking to its own page.
+      // Emergency notices go out by text first and can reach that list hours later.
+      const base = "https://www.smcmua.org/";
+      const html = await fetchOk(ctx, base + "alerts.htm");
+      need(/ALERTS/i.test(html), "not the SMCMUA alerts page");
+      const seen = (ctx.cache.seen ??= {});
+      for (const [, href, inner] of html.matchAll(/<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)) {
+        const m = strip(inner).match(/^(.*?)\s*\((\d{1,2})\/(\d{1,2})\/(\d{2,4})\)\s*$/);
+        if (!m || !/repair|break|boil|emergency|interruption|advisory|outage/i.test(m[1])) continue;
+        const year = Number(m[4]) < 100 ? 2000 + Number(m[4]) : Number(m[4]);
+        seen[new URL(href, base).href] ??= { title: m[1], at: Date.UTC(year, m[2] - 1, m[3], 17) };
+      }
+      for (const n of UNLISTED) seen[n.url] ??= { title: n.title, at: n.at };
+      for (const [url, n] of Object.entries(seen)) if (ctx.now - n.at > 5 * 86400e3) delete seen[url];
+
+      // Open each notice from the past two days to see whether the work is still under way.
+      const recent = Object.entries(seen).filter(([, n]) => ctx.now - n.at < 2.5 * 86400e3).sort((x, y) => y[1].at - x[1].at).slice(0, 8);
+      for (const [url, n] of recent) {
+        const res = await ctx.get(url);
+        if (!res.ok) continue;
+        const text = strip(res.text);
+        n.status = /boil[- ]water advisory/i.test(text) && !/no boil[- ]water advisory/i.test(text) ? "boil" : /in progress/i.test(text) ? "active" : /complete|restored/i.test(text) ? "done" : "posted";
+        n.where = clip(text.match(/at or near ([^.]{3,90})\./i)?.[1] ?? "", 80);
+      }
+      const local = (n) => /Morristown|Morris Township|Morris Twp/i.test(`${n.title} ${n.where ?? ""}`);
+      const open = recent.map(([, n]) => n).filter((n) => n.status === "active" || n.status === "boil");
+      const boil = open.some((n) => n.status === "boil"), nearMe = open.filter(local);
+      const say = (n) => `${n.status === "boil" ? "Boil water" : n.status === "active" ? "In progress" : n.status === "done" ? "Completed" : "Posted"}: ${n.where || n.title.replace(/^Water Repairs in /i, "")} (${etDay(n.at)})`;
       return {
         name: "SMCMUA water notices", label: "SMCMUA water", tile: "power", scope: "home", kind: "status",
-        note: hit ? `Found on the utility's home page: “${near}”` : "Read from the utility's home page, where it posts main breaks, boil-water advisories and supply emergencies.",
-        source: "https://www.smcmua.org/",
-        state: major ? "major" : minor ? "minor" : "ok",
-        short: hit ? hit[0].toLowerCase() : "no notice",
-        track: { notice: major ? 2 : minor ? 1 : 0 },
+        state: boil ? "critical" : nearMe.length ? "major" : open.length ? "minor" : "ok",
+        short: boil ? "boil water" : nearMe.length ? "repairs near you" : open.length ? `${open.length} repair${open.length > 1 ? "s" : ""} nearby` : "no active notice",
+        items: recent.map(([, n]) => say(n)).slice(0, 6),
+        note: "From the utility's alerts page and each notice it links to. A repair under way in Morristown or Morris Township counts as major, one in a neighboring town as minor, and a boil-water advisory as critical. Emergency notices go out by text first and can take hours to reach that page, so a new one may not show here right away.",
+        source: "https://www.smcmua.org/alerts.htm",
+        track: { open: open.length, local: nearMe.length, boil: boil ? 1 : 0 },
       };
     },
   },

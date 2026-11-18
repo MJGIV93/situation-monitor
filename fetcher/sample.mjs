@@ -16,18 +16,14 @@ const cboeHist = (s) => `https://cdn.cboe.com/api/global/delayed_quotes/charts/h
 const geo = { accept: "application/geo+json" };
 const gql = (query) => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }) });
 
-const day = (n) => new Date(Date.now() - n * 86400e3).toISOString().slice(0, 10);
 const LIST = [
-  ["tfr-list", "https://tfr.faa.gov/tfrapi/exportTfrList"],
-  ["gpsjam-manifest", "https://gpsjam.org/data/manifest.csv"],
-  ["gpsjam-day", `https://gpsjam.org/data/${day(2)}-h3_4.csv`],
-  ["eam-home", "https://eam.watch/"],
-  ["state-advisories", "https://travel.state.gov/_res/rss/TAsTWs.xml"],
-  ["gdelt-strikes", "https://api.gdeltproject.org/api/v2/doc/doc?query=(airstrike%20OR%20%22missile%20strike%22%20OR%20%22military%20strike%22)&mode=timelinevol&timespan=14d&format=json"],
-  ["cboe-ita", "https://cdn.cboe.com/api/global/delayed_quotes/quotes/ITA.json"],
-  ["usni-fleet", "https://news.usni.org/category/fleet-tracker/feed"],
-  ["squawk-7700", "https://opendata.adsb.fi/api/v2/sqk/7700"],
-  ["polymarket-geo", "https://gamma-api.polymarket.com/events?closed=false&tag_slug=geopolitics&limit=30&order=volume24hr&ascending=false"],
+  ["smcmua-alerts", "https://www.smcmua.org/alerts.htm"],
+  ["smcmua-notice", "https://www.smcmua.org/WaterRepairs_208LakeRd_MorrisTwp.htm"],
+  ["rave-rss-1", "https://www.getrave.com/rss/smcmua/channel1"],
+  ["rave-rss-2", "https://content.getrave.com/rss/smcmua/channel1"],
+  ["rave-cap", "https://www.getrave.com/cap/smcmua/channel1"],
+  ["nixle-morris-twp", "https://nixle.us/city/nj/morris-township/"],
+  ["nixle-morristown", "https://nixle.us/city/nj/morristown/"],
 ];
 
 const OUT = "samples";
