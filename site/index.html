@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Situation Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&display=swap">
+<style>
+  :root {
+    --bg: #f4f3ef; --surface: #ffffff; --line: #dcdad2; --fg: #1b1c1a; --dim: #6b6d66;
+    --ok: #2f7d4f; --bad: #b3372c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #121311; --surface: #1b1c1a; --line: #2e302c; --fg: #ecebe6; --dim: #9a9c94; --ok: #6cc08a; --bad: #ee7b6c; color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 Barlow, system-ui, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 28px max(16px, env(safe-area-inset-right)) 48px max(16px, env(safe-area-inset-left)); }
+  h1 { font: 600 30px/1.1 "Barlow Condensed", Barlow, sans-serif; margin: 0 0 4px; }
+  .sub { color: var(--dim); margin: 0 0 22px; }
+  .tally { font: 600 44px/1 "Barlow Condensed", Barlow, sans-serif; font-variant-numeric: tabular-nums; }
+  .tally small { font: 400 15px Barlow, sans-serif; color: var(--dim); margin-left: 8px; }
+  h2 { font: 600 17px "Barlow Condensed", Barlow, sans-serif; margin: 26px 0 6px; color: var(--dim); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 8px 12px; border-top: 1px solid var(--line); vertical-align: top; }
+  tr:first-child td { border-top: 0; }
+  .n { white-space: nowrap; font-weight: 500; }
+  .s { white-space: nowrap; font-weight: 600; width: 70px; }
+  .s.ok { color: var(--ok); } .s.bad { color: var(--bad); }
+  .d { color: var(--dim); overflow-wrap: anywhere; min-width: 200px; }
+  .t { white-space: nowrap; text-align: right; color: var(--dim); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Situation Monitor</h1>
+  <p class="sub">Source check. The dashboard replaces this page once the sources are confirmed.</p>
+  <div class="tally" id="tally">Loading</div>
+  <p class="sub" id="when"></p>
+  <div id="groups"></div>
+</main>
+<script>
+  const fmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+  async function load() {
+    let report;
+    try {
+      report = await fetch("data/probe.json?t=" + Date.now(), { cache: "no-store" }).then((r) => r.json());
+    } catch (e) {
+      document.getElementById("tally").textContent = "No data yet";
+      return;
+    }
+    const tally = document.getElementById("tally");
+    tally.textContent = report.ok + " of " + report.total;
+    tally.append(el("small", "", "sources answering"));
+    document.getElementById("when").textContent = "Last run " + fmt.format(new Date(report.ranAt)) + " ET";
+
+    const groups = document.getElementById("groups");
+    groups.textContent = "";
+    const byGroup = new Map();
+    for (const r of report.results) { if (!byGroup.has(r.group)) byGroup.set(r.group, []); byGroup.get(r.group).push(r); }
+    for (const [name, rows] of byGroup) {
+      groups.append(el("h2", "", name));
+      const card = el("div", "card"), table = el("table");
+      for (const r of rows) {
+        const tr = el("tr");
+        tr.append(el("td", "n", r.name), el("td", "s " + (r.ok ? "ok" : "bad"), r.ok ? "OK" : "Failed"), el("td", "d", r.detail), el("td", "t", r.ms ? r.ms + " ms" : ""));
+        table.append(tr);
+      }
+      card.append(table); groups.append(card);
+    }
+  }
+  load();
+  setInterval(load, 60000);
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "situation-monitor",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "probe": "node fetcher/probe.mjs"
+  }
+}
